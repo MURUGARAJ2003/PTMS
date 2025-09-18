@@ -83,6 +83,13 @@
         .admin-bg {
             background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
         }
+        .data-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -185,13 +192,13 @@
                                     <tbody>
                                         <tr>
                                             <td>Previous Month</td>
-                                            <td id="prev-month-energy">120</td>
-                                            <td id="prev-month-amount">594.00</td>
+                                            <td id="prev-month-energy">0</td>
+                                            <td id="prev-month-amount">0.00</td>
                                         </tr>
                                         <tr>
                                             <td>Current Month</td>
-                                            <td id="current-month-energy">95</td>
-                                            <td id="current-month-amount">470.25</td>
+                                            <td id="current-month-energy">0</td>
+                                            <td id="current-month-amount">0.00</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -209,7 +216,13 @@
                     <h5 class="mb-0">Historical Data</h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="consumer-chart" height="100"></canvas>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div id="historical-data" class="text-center">
+                                <p class="text-muted">Historical data will be displayed here as it accumulates</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -263,6 +276,16 @@
                                             <div class="reading-value"><span id="transformer-energy">0.00</span> <span class="unit">kWh</span></div>
                                         </div>
                                     </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="text-muted">Frequency</div>
+                                            <div class="reading-value"><span id="transformer-frequency">0.00</span> <span class="unit">Hz</span></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted">Power Factor</div>
+                                            <div class="reading-value"><span id="transformer-pf">0.00</span></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -292,21 +315,22 @@
                                             <div class="reading-value"><span id="admin-energy">0.00</span> <span class="unit">kWh</span></div>
                                         </div>
                                     </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="text-muted">Frequency</div>
+                                            <div class="reading-value"><span id="admin-frequency">0.00</span> <span class="unit">Hz</span></div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted">Power Factor</div>
+                                            <div class="reading-value"><span id="admin-pf">0.00</span></div>
+                                        </div>
+                                    </div>
                                     <div class="alert alert-warning mt-3">
                                         <div class="text-muted">Power Difference</div>
                                         <div class="reading-value"><span id="power-difference">0.00</span> <span class="unit">W</span></div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="card mt-4">
-                        <div class="card-header bg-info text-white">
-                            <h5 class="mb-0">Consumption Comparison</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="comparison-chart" height="100"></canvas>
                         </div>
                     </div>
                 </div>
@@ -328,18 +352,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="theft-log-body">
-                                        <tr>
-                                            <td>2023-11-05 14:32:15</td>
-                                            <td>1250 W</td>
-                                            <td>1450 W</td>
-                                            <td>200 W</td>
-                                        </tr>
-                                        <tr>
-                                            <td>2023-10-28 09:15:47</td>
-                                            <td>1100 W</td>
-                                            <td>1350 W</td>
-                                            <td>250 W</td>
-                                        </tr>
+                                        <!-- Theft incidents will be populated here -->
                                     </tbody>
                                 </table>
                             </div>
@@ -361,7 +374,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // Firebase configuration
         const firebaseConfig = {
@@ -420,138 +432,189 @@
 
         // Bill calculation
         document.getElementById('calculate-bill').addEventListener('click', function() {
+            calculateBill();
             document.getElementById('bill-details').classList.remove('d-none');
         });
 
-        // Consumer data fetch
+        // Function to calculate bill based on energy consumption
+        function calculateBill() {
+            // Get current energy value
+            const energyElement = document.getElementById('consumer-energy');
+            const energy = parseFloat(energyElement.textContent) || 0;
+            
+            // Calculate bill based on tariff
+            let amount = 0;
+            if (energy <= 200) {
+                amount = energy * 4.95;
+            } else if (energy > 200 && energy <= 400) {
+                amount = (200 * 4.95) + ((energy - 200) * 8.00);
+            } else if (energy > 400 && energy <= 500) {
+                amount = (200 * 4.95) + (200 * 8.00) + ((energy - 400) * 11.05);
+            } else {
+                amount = (200 * 4.95) + (200 * 8.00) + (100 * 11.05) + ((energy - 500) * 12.50);
+            }
+            
+            // Set values for display
+            document.getElementById('current-month-energy').textContent = energy.toFixed(2);
+            document.getElementById('current-month-amount').textContent = amount.toFixed(2);
+            
+            // For demonstration, set previous month as 10% less
+            const prevEnergy = energy * 0.9;
+            let prevAmount = 0;
+            if (prevEnergy <= 200) {
+                prevAmount = prevEnergy * 4.95;
+            } else if (prevEnergy > 200 && prevEnergy <= 400) {
+                prevAmount = (200 * 4.95) + ((prevEnergy - 200) * 8.00);
+            } else if (prevEnergy > 400 && prevEnergy <= 500) {
+                prevAmount = (200 * 4.95) + (200 * 8.00) + ((prevEnergy - 400) * 11.05);
+            } else {
+                prevAmount = (200 * 4.95) + (200 * 8.00) + (100 * 11.05) + ((prevEnergy - 500) * 12.50);
+            }
+            
+            document.getElementById('prev-month-energy').textContent = prevEnergy.toFixed(2);
+            document.getElementById('prev-month-amount').textContent = prevAmount.toFixed(2);
+        }
+
+        // Consumer data fetch from Firebase
         function startConsumerDataFetch() {
-            // Simulated data for demonstration
-            setInterval(() => {
-                const voltage = (220 + (Math.random() * 10 - 5)).toFixed(2);
-                const current = (5 + (Math.random() * 3)).toFixed(2);
-                const power = (voltage * current).toFixed(2);
-                const energy = (125 + (Math.random() * 0.1)).toFixed(2);
-                const frequency = (50 + (Math.random() * 0.2 - 0.1)).toFixed(2);
-                const pf = (0.95 + (Math.random() * 0.05)).toFixed(2);
-                
-                document.getElementById('consumer-voltage').textContent = voltage;
-                document.getElementById('consumer-current').textContent = current;
-                document.getElementById('consumer-power').textContent = power;
-                document.getElementById('consumer-energy').textContent = energy;
-                document.getElementById('consumer-frequency').textContent = frequency;
-                document.getElementById('consumer-pf').textContent = pf;
-            }, 2000);
+            const consumerRef = database.ref('sensor_data/board2');
+            
+            consumerRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    document.getElementById('consumer-voltage').textContent = data.voltage.toFixed(2);
+                    document.getElementById('consumer-current').textContent = data.current.toFixed(3);
+                    document.getElementById('consumer-power').textContent = data.power.toFixed(1);
+                    document.getElementById('consumer-energy').textContent = data.energy.toFixed(3);
+                    document.getElementById('consumer-frequency').textContent = data.frequency.toFixed(1);
+                    document.getElementById('consumer-pf').textContent = data.pf.toFixed(2);
+                    
+                    // Update historical data display
+                    updateHistoricalData('consumer', data);
+                }
+            });
         }
 
-        // Admin data fetch
+        // Admin data fetch from Firebase
         function startAdminDataFetch() {
-            // Simulated data for demonstration
-            setInterval(() => {
-                // Transformer data
-                const transVoltage = (230 + (Math.random() * 10 - 5)).toFixed(2);
-                const transCurrent = (20 + (Math.random() * 5)).toFixed(2);
-                const transPower = (transVoltage * transCurrent).toFixed(2);
-                const transEnergy = (500 + (Math.random() * 0.5)).toFixed(2);
-                
-                document.getElementById('transformer-voltage').textContent = transVoltage;
-                document.getElementById('transformer-current').textContent = transCurrent;
-                document.getElementById('transformer-power').textContent = transPower;
-                document.getElementById('transformer-energy').textContent = transEnergy;
-                
-                // Consumer data
-                const consumerVoltage = (220 + (Math.random() * 10 - 5)).toFixed(2);
-                const consumerCurrent = (18 + (Math.random() * 4)).toFixed(2);
-                const consumerPower = (consumerVoltage * consumerCurrent).toFixed(2);
-                const consumerEnergy = (450 + (Math.random() * 0.5)).toFixed(2);
-                
-                document.getElementById('admin-voltage').textContent = consumerVoltage;
-                document.getElementById('admin-current').textContent = consumerCurrent;
-                document.getElementById('admin-power').textContent = consumerPower;
-                document.getElementById('admin-energy').textContent = consumerEnergy;
-                
-                // Calculate difference
-                const powerDiff = Math.abs(transPower - consumerPower).toFixed(2);
-                document.getElementById('power-difference').textContent = powerDiff;
-                
-                // Check for power theft
-                if (powerDiff > 20) {
-                    document.getElementById('alert-difference').textContent = powerDiff;
-                    theftAlert.classList.remove('d-none');
+            const transformerRef = database.ref('sensor_data/board1');
+            const consumerRef = database.ref('sensor_data/board2');
+            
+            transformerRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    document.getElementById('transformer-voltage').textContent = data.voltage.toFixed(2);
+                    document.getElementById('transformer-current').textContent = data.current.toFixed(3);
+                    document.getElementById('transformer-power').textContent = data.power.toFixed(1);
+                    document.getElementById('transformer-energy').textContent = data.energy.toFixed(3);
+                    document.getElementById('transformer-frequency').textContent = data.frequency.toFixed(1);
+                    document.getElementById('transformer-pf').textContent = data.pf.toFixed(2);
                     
-                    // Play alert sound
-                    const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
-                    audio.play();
-                    
-                    // Log theft incident
-                    const now = new Date();
-                    const dateTime = now.toLocaleString();
-                    
-                    const logEntry = `
-                        <tr>
-                            <td>${dateTime}</td>
-                            <td>${transPower} W</td>
-                            <td>${consumerPower} W</td>
-                            <td>${powerDiff} W</td>
-                        </tr>
-                    `;
-                    
-                    document.getElementById('theft-log-body').innerHTML = logEntry + 
-                        document.getElementById('theft-log-body').innerHTML;
+                    // Check for power theft
+                    checkPowerTheft();
                 }
-            }, 2000);
+            });
+            
+            consumerRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    document.getElementById('admin-voltage').textContent = data.voltage.toFixed(2);
+                    document.getElementById('admin-current').textContent = data.current.toFixed(3);
+                    document.getElementById('admin-power').textContent = data.power.toFixed(1);
+                    document.getElementById('admin-energy').textContent = data.energy.toFixed(3);
+                    document.getElementById('admin-frequency').textContent = data.frequency.toFixed(1);
+                    document.getElementById('admin-pf').textContent = data.pf.toFixed(2);
+                    
+                    // Check for power theft
+                    checkPowerTheft();
+                }
+            });
         }
 
-        // Initialize charts
-        const consumerCtx = document.getElementById('consumer-chart').getContext('2d');
-        const consumerChart = new Chart(consumerCtx, {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
-                datasets: [{
-                    label: 'Energy Consumption (kWh)',
-                    data: [120, 110, 95, 105, 115, 125, 135, 130, 120, 110, 95],
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Monthly Energy Consumption'
-                    }
-                }
+        // Check for power theft
+        function checkPowerTheft() {
+            const transformerPower = parseFloat(document.getElementById('transformer-power').textContent) || 0;
+            const consumerPower = parseFloat(document.getElementById('admin-power').textContent) || 0;
+            
+            const powerDiff = Math.abs(transformerPower - consumerPower);
+            document.getElementById('power-difference').textContent = powerDiff.toFixed(1);
+            
+            // Check if difference exceeds threshold (20W)
+            if (powerDiff > 20) {
+                document.getElementById('alert-difference').textContent = powerDiff.toFixed(1);
+                theftAlert.classList.remove('d-none');
+                
+                // Play alert sound
+                const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
+                audio.play();
+                
+                // Log theft incident
+                logTheftIncident(transformerPower, consumerPower, powerDiff);
             }
-        });
+        }
 
-        const comparisonCtx = document.getElementById('comparison-chart').getContext('2d');
-        const comparisonChart = new Chart(comparisonCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
-                datasets: [
-                    {
-                        label: 'Transformer (kWh)',
-                        data: [500, 480, 510, 490, 520, 530, 540, 550, 530, 510, 500],
-                        backgroundColor: 'rgba(54, 162, 235, 0.5)'
-                    },
-                    {
-                        label: 'House111 (kWh)',
-                        data: [120, 110, 95, 105, 115, 125, 135, 130, 120, 110, 95],
-                        backgroundColor: 'rgba(255, 99, 132, 0.5)'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Transformer vs Consumer Energy Comparison'
-                    }
-                }
+        // Log theft incident
+        function logTheftIncident(transformerPower, consumerPower, difference) {
+            const now = new Date();
+            const dateTime = now.toLocaleString();
+            
+            const logEntry = `
+                <tr>
+                    <td>${dateTime}</td>
+                    <td>${transformerPower.toFixed(1)} W</td>
+                    <td>${consumerPower.toFixed(1)} W</td>
+                    <td>${difference.toFixed(1)} W</td>
+                </tr>
+            `;
+            
+            // Prepend new log entry
+            document.getElementById('theft-log-body').innerHTML = logEntry + document.getElementById('theft-log-body').innerHTML;
+        }
+
+        // Update historical data display
+        function updateHistoricalData(type, data) {
+            const historicalDiv = document.getElementById('historical-data');
+            
+            // Create a simple display of recent readings
+            const readingTime = new Date().toLocaleTimeString();
+            const readingHtml = `
+                <div class="data-card">
+                    <div class="row">
+                        <div class="col-3"><strong>Time:</strong> ${readingTime}</div>
+                        <div class="col-2"><strong>V:</strong> ${data.voltage.toFixed(2)} V</div>
+                        <div class="col-2"><strong>A:</strong> ${data.current.toFixed(3)} A</div>
+                        <div class="col-2"><strong>W:</strong> ${data.power.toFixed(1)} W</div>
+                        <div class="col-3"><strong>Energy:</strong> ${data.energy.toFixed(3)} kWh</div>
+                    </div>
+                </div>
+            `;
+            
+            // Prepend new reading
+            historicalDiv.innerHTML = readingHtml + historicalDiv.innerHTML;
+            
+            // Limit to 10 most recent readings
+            const readings = historicalDiv.querySelectorAll('.data-card');
+            if (readings.length > 10) {
+                readings[readings.length - 1].remove();
             }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user was previously logged in
+            const savedUser = localStorage.getItem('powerUser');
+            if (savedUser) {
+                const userData = JSON.parse(savedUser);
+                document.getElementById('username').value = userData.username;
+                document.getElementById('password').value = userData.password;
+            }
+            
+            // Add enter key login functionality
+            document.getElementById('password').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('login-btn').click();
+                }
+            });
         });
     </script>
 </body>
