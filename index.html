@@ -1,395 +1,249 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ESP32 Power Monitor — Admin & Consumer</title>
+  <meta charset="UTF-8">
+  <title>Power Theft Detection</title>
+  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js" type="module"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root{
-      --bg:#0f1724; --card:#0b1220; --accent:#10b981; --danger:#ef4444;
-      --muted:#94a3b8; --glass:rgba(255,255,255,0.03);
+    body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; }
+    #loginBox, #adminPage, #consumerPage { display: none; }
+    table { margin: 20px auto; border-collapse: collapse; width: 80%; }
+    th, td { padding: 10px; border: 1px solid #333; }
+    .alert { animation: blink 1s infinite; background: red; color: white; padding: 10px; }
+    @keyframes blink {
+      0% { background: red; }
+      50% { background: yellow; color:black; }
+      100% { background: red; }
     }
-    *{box-sizing:border-box;font-family:Inter, system-ui, Arial;}
-    body{margin:0;background:linear-gradient(180deg,#071126 0%,#02121b 100%);color:#e6eef6;min-height:100vh}
-    .container{max-width:1100px;margin:24px auto;padding:18px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    h1{font-size:20px;margin:0}
-    .card{background:var(--card);padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
-    .login{max-width:420px;margin:34px auto}
-    label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
-    input[type="text"],input[type="password"]{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;margin-top:6px}
-    button{background:var(--accent);border:none;padding:10px 14px;border-radius:8px;color:#03211A;font-weight:600;cursor:pointer;margin-top:12px}
-    .flex{display:flex;gap:12px;align-items:center}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
-    .stat{padding:12px;border-radius:8px;background:var(--glass);border:1px solid rgba(255,255,255,0.02)}
-    .stat h3{margin:0;font-size:14px;color:var(--muted)} .stat p{margin:6px 0 0;font-size:18px;font-weight:700}
-    .blink {
-      animation: blinkBG 800ms infinite;
-    }
-    @keyframes blinkBG {
-      0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.0); transform: translateY(0px); }
-      50%{ box-shadow: 0 0 18px 6px rgba(239,68,68,0.12); transform: translateY(-2px); }
-      100%{ box-shadow: 0 0 0 0 rgba(239,68,68,0.0); transform: translateY(0px); }
-    }
-    .alert-banner{background:linear-gradient(90deg,#581c1c,#ef4444);padding:10px;border-radius:8px;color:white;margin-bottom:12px;font-weight:700}
-    .log{max-height:320px;overflow:auto;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px}
-    table{width:100%;border-collapse:collapse;color:#dfeeff}
-    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;font-size:13px}
-    .small{font-size:12px;color:var(--muted)}
-    .hidden{display:none}
-    nav .btn-logout{background:#ef4444;color:white}
-    .role{font-size:13px;color:var(--muted)}
-    footer{margin-top:20px;color:var(--muted);font-size:13px;text-align:center}
-    @media(max-width:900px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>ESP32 Power Monitor</h1>
-        <div class="small">Transformer: <strong>ESP32_1</strong> • Consumer: <strong>ESP32_2</strong></div>
-      </div>
-      <div>
-        <span id="userRole" class="role">Not logged</span>
-        <button id="logoutBtn" class="btn-logout hidden" style="margin-left:12px;padding:8px 10px;border-radius:8px;border:none;cursor:pointer">Logout</button>
-      </div>
-    </header>
+  <h1>⚡ Power Theft Monitoring System</h1>
 
-    <!-- LOGIN -->
-    <div id="loginView" class="card login">
-      <h2 style="margin:0 0 8px 0">Sign in</h2>
-      <div class="small" style="margin-bottom:10px">Use <strong>admin123 / admin123</strong> or <strong>consumer 123 / consumer123</strong></div>
-      <label>Username</label>
-      <input id="username" type="text" placeholder="admin123 or consumer 123" />
-      <label>Password</label>
-      <input id="password" type="password" placeholder="password" />
-      <button id="loginBtn">Login</button>
-      <div id="loginError" class="small" style="color:#ffb4b4;margin-top:8px;display:none"></div>
-    </div>
-
-    <!-- ADMIN & CONSUMER DASH -->
-    <div id="dashboard" class="hidden">
-      <!-- ALERT BANNER -->
-      <div id="alertBanner" class="alert-banner hidden">⚠️ Power mismatch detected — see Fault Log</div>
-
-      <div class="card">
-        <div class="flex" style="justify-content:space-between">
-          <div>
-            <h2 id="dashTitle" style="margin:0">Admin Dashboard</h2>
-            <div class="small" id="dashSubtitle">Viewing both Transformer & Consumer</div>
-          </div>
-          <div class="small">
-            <div>Realtime updates from Firebase</div>
-          </div>
-        </div>
-
-        <div class="grid" style="margin-top:14px">
-          <div class="card stat" id="transformerCard">
-            <h3>Transformer (ESP32_1)</h3>
-            <p id="tVoltage">V: --</p>
-            <p id="tCurrent">I: --</p>
-            <p id="tPower">P: --</p>
-            <p id="tEnergy">E: --</p>
-            <p id="tFreq">F: --</p>
-            <p id="tPF">PF: --</p>
-          </div>
-
-          <div class="card stat" id="consumerCard">
-            <h3>Consumer (ESP32_2)</h3>
-            <p id="cVoltage">V: --</p>
-            <p id="cCurrent">I: --</p>
-            <p id="cPower">P: --</p>
-            <p id="cEnergy">E: --</p>
-            <p id="cFreq">F: --</p>
-            <p id="cPF">PF: --</p>
-          </div>
-        </div>
-
-        <div style="margin-top:14px">
-          <h3 style="margin:0 0 8px 0">Latest Fault Log</h3>
-          <div class="log card" id="faultLog">
-            <table>
-              <thead>
-                <tr><th>Time</th><th>Transformer P (W)</th><th>Consumer P (W)</th><th>Diff (W)</th></tr>
-              </thead>
-              <tbody id="faultLogBody">
-                <tr><td colspan="4" class="small">No faults yet</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Consumer-only log view-->
-      <div id="consumerOnlySection" class="card hidden" style="margin-top:14px">
-        <h3>Consumer — Theft Details</h3>
-        <div class="log" id="consumerLog">
-          <table>
-            <thead>
-              <tr><th>Time</th><th>Transformer P</th><th>Consumer P</th><th>Diff</th></tr>
-            </thead>
-            <tbody id="consumerLogBody">
-              <tr><td colspan="4" class="small">No theft logs</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <footer class="small">Built for ESP32 PZEM readings — Deploy on GitHub Pages for public access</footer>
+  <!-- Login Box -->
+  <div id="loginBox">
+    <h2>Login</h2>
+    <input type="text" id="userid" placeholder="User ID"><br><br>
+    <input type="password" id="password" placeholder="Password"><br><br>
+    <button onclick="login()">Login</button>
   </div>
 
-  <!-- Firebase SDK (modular) -->
-  <script type="module">
-    // --- Firebase imports ---
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-    import {
-      getDatabase, ref, onValue, push, set, child, get, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+  <!-- Admin Page -->
+  <div id="adminPage">
+    <h2>Admin Dashboard</h2>
+    <h3>Transformer Side (ESP32-1)</h3>
+    <table>
+      <tr><th>Voltage</th><td id="tVolt"></td></tr>
+      <tr><th>Current</th><td id="tCurr"></td></tr>
+      <tr><th>Power</th><td id="tPower"></td></tr>
+      <tr><th>Energy</th><td id="tEnergy"></td></tr>
+      <tr><th>Frequency</th><td id="tFreq"></td></tr>
+      <tr><th>Power Factor</th><td id="tPF"></td></tr>
+    </table>
 
-    // --- Firebase config (from your earlier message) ---
+    <h3>Consumer Side (ESP32-2)</h3>
+    <table>
+      <tr><th>Voltage</th><td id="cVolt"></td></tr>
+      <tr><th>Current</th><td id="cCurr"></td></tr>
+      <tr><th>Power</th><td id="cPower"></td></tr>
+      <tr><th>Energy</th><td id="cEnergy"></td></tr>
+      <tr><th>Frequency</th><td id="cFreq"></td></tr>
+      <tr><th>Power Factor</th><td id="cPF"></td></tr>
+    </table>
+
+    <h3>Fault Log</h3>
+    <div id="faultLog"></div>
+
+    <h3>Power Graph</h3>
+    <canvas id="powerChart" width="600" height="300"></canvas>
+
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <!-- Consumer Page -->
+  <div id="consumerPage">
+    <h2>Consumer Dashboard</h2>
+    <h3>Consumer Side (ESP32-2)</h3>
+    <table>
+      <tr><th>Voltage</th><td id="cVolt2"></td></tr>
+      <tr><th>Current</th><td id="cCurr2"></td></tr>
+      <tr><th>Power</th><td id="cPower2"></td></tr>
+      <tr><th>Energy</th><td id="cEnergy2"></td></tr>
+      <tr><th>Frequency</th><td id="cFreq2"></td></tr>
+      <tr><th>Power Factor</th><td id="cPF2"></td></tr>
+    </table>
+
+    <h3>Fault Log</h3>
+    <div id="faultLog2"></div>
+
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+
+    // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyDieP1yWZCYfw22llojBCY_rBk0vRwEH7k",
       authDomain: "iot-based-power-theft.firebaseapp.com",
       databaseURL: "https://iot-based-power-theft-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "iot-based-power-theft",
-      storageBucket: "iot-based-power-theft.firebasestorage.app",
+      storageBucket: "iot-based-power-theft.appspot.com",
       messagingSenderId: "300681383944",
       appId: "1:300681383944:web:d9447408905b8afd6981bd"
     };
-
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // --- DOM refs ---
-    const loginView = document.getElementById('loginView');
-    const dashboard = document.getElementById('dashboard');
-    const loginBtn = document.getElementById('loginBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const usernameEl = document.getElementById('username');
-    const passwordEl = document.getElementById('password');
-    const loginError = document.getElementById('loginError');
-    const userRole = document.getElementById('userRole');
-    const dashTitle = document.getElementById('dashTitle');
-    const dashSubtitle = document.getElementById('dashSubtitle');
-    const alertBanner = document.getElementById('alertBanner');
-    const transformerCard = document.getElementById('transformerCard');
-    const consumerCard = document.getElementById('consumerCard');
+    // Login System
+    function login() {
+      let id = document.getElementById("userid").value;
+      let pass = document.getElementById("password").value;
 
-    // transformer DOM
-    const tVoltage = document.getElementById('tVoltage');
-    const tCurrent = document.getElementById('tCurrent');
-    const tPower = document.getElementById('tPower');
-    const tEnergy = document.getElementById('tEnergy');
-    const tFreq = document.getElementById('tFreq');
-    const tPF = document.getElementById('tPF');
-
-    // consumer DOM
-    const cVoltage = document.getElementById('cVoltage');
-    const cCurrent = document.getElementById('cCurrent');
-    const cPower = document.getElementById('cPower');
-    const cEnergy = document.getElementById('cEnergy');
-    const cFreq = document.getElementById('cFreq');
-    const cPF = document.getElementById('cPF');
-
-    const faultLogBody = document.getElementById('faultLogBody');
-    const consumerLogBody = document.getElementById('consumerLogBody');
-    const consumerOnlySection = document.getElementById('consumerOnlySection');
-
-    // state
-    let role = null; // 'admin' or 'consumer'
-    let lastFaultKey = null;
-    const DIFF_THRESHOLD = 30; // watts
-
-    // --- Simple login (client-side, as requested) ---
-    function doLogin() {
-      const user = usernameEl.value.trim();
-      const pass = passwordEl.value;
-      loginError.style.display = 'none';
-
-      // accept "consumer 123" or "consumer123" for user convenience
-      if (user === 'admin123' && pass === 'admin123') {
-        role = 'admin';
-      } else if ((user === 'consumer 123' || user === 'consumer123') && pass === 'consumer123') {
-        role = 'consumer';
-      } else {
-        loginError.innerText = 'Invalid credentials';
-        loginError.style.display = 'block';
-        return;
+      if(id==="admin123" && pass==="admin123"){
+        document.getElementById("loginBox").style.display="none";
+        document.getElementById("adminPage").style.display="block";
+        startAdmin();
       }
-
-      // show dashboard
-      loginView.classList.add('hidden');
-      dashboard.classList.remove('hidden');
-      logoutBtn.classList.remove('hidden');
-      userRole.innerText = (role === 'admin') ? 'Admin' : 'Consumer';
-      if (role === 'consumer') {
-        dashTitle.innerText = 'Consumer Dashboard';
-        dashSubtitle.innerText = 'Viewing consumer (ESP32_2) & theft log';
-        consumerOnlySection.classList.remove('hidden');
+      else if(id==="consumer123" && pass==="consumer123"){
+        document.getElementById("loginBox").style.display="none";
+        document.getElementById("consumerPage").style.display="block";
+        startConsumer();
       } else {
-        dashTitle.innerText = 'Admin Dashboard';
-        dashSubtitle.innerText = 'Viewing transformer (ESP32_1), consumer (ESP32_2) & fault log';
-        consumerOnlySection.classList.add('hidden');
+        alert("Invalid Login!");
       }
     }
+    window.login = login;
 
-    loginBtn.addEventListener('click', doLogin);
-    passwordEl.addEventListener('keyup', (e)=> { if (e.key === 'Enter') doLogin(); });
-
-    logoutBtn.addEventListener('click', ()=>{
-      // reset
-      role = null;
-      loginView.classList.remove('hidden');
-      dashboard.classList.add('hidden');
-      logoutBtn.classList.add('hidden');
-      userRole.innerText = 'Not logged';
-      usernameEl.value = '';
-      passwordEl.value = '';
-      alertBanner.classList.add('hidden');
-      transformerCard.classList.remove('blink');
-      consumerCard.classList.remove('blink');
-    });
-
-    // --- Listen to ESP32 nodes in Realtime DB ---
-    const esp1Ref = ref(db, 'ESP32_1'); // transformer
-    const esp2Ref = ref(db, 'ESP32_2'); // consumer
-    const faultsRef = ref(db, 'faults');
-
-    // helper: format number
-    function safeNum(n){ return (n === undefined || n === null) ? '--' : (Math.round(n*100)/100); }
-    function iso(ts){ return new Date(ts).toLocaleString(); }
-
-    // keep last states
-    let lastTransformer = {};
-    let lastConsumer = {};
-
-    onValue(esp1Ref, (snap)=>{
-      const val = snap.val() || {};
-      lastTransformer = val;
-      // update UI
-      tVoltage.innerText = 'V: ' + safeNum(val.Voltage);
-      tCurrent.innerText = 'I: ' + safeNum(val.Current);
-      tPower.innerText = 'P: ' + safeNum(val.Power) + ' W';
-      tEnergy.innerText = 'E: ' + safeNum(val.Energy);
-      tFreq.innerText = 'F: ' + safeNum(val.Frequency);
-      tPF.innerText = 'PF: ' + safeNum(val.PowerFactor);
-      checkDifferenceAndMaybeLog();
-    });
-
-    onValue(esp2Ref, (snap)=>{
-      const val = snap.val() || {};
-      lastConsumer = val;
-      cVoltage.innerText = 'V: ' + safeNum(val.Voltage);
-      cCurrent.innerText = 'I: ' + safeNum(val.Current);
-      cPower.innerText = 'P: ' + safeNum(val.Power) + ' W';
-      cEnergy.innerText = 'E: ' + safeNum(val.Energy);
-      cFreq.innerText = 'F: ' + safeNum(val.Frequency);
-      cPF.innerText = 'PF: ' + safeNum(val.PowerFactor);
-      checkDifferenceAndMaybeLog();
-    });
-
-    // load fault log initially and subscribe
-    onValue(faultsRef, (snap)=>{
-      const val = snap.val() || {};
-      renderFaultLog(val);
-    });
-
-    function renderFaultLog(obj){
-      // obj is keyed by push ids — convert to array sorted desc by time
-      const rows = [];
-      for (const k in obj){
-        const item = obj[k];
-        rows.push({key:k, ...item});
-      }
-      rows.sort((a,b)=> (b.timestamp||0) - (a.timestamp||0));
-      if (rows.length === 0) {
-        faultLogBody.innerHTML = '<tr><td colspan="4" class="small">No faults yet</td></tr>';
-        consumerLogBody.innerHTML = '<tr><td colspan="4" class="small">No theft logs</td></tr>';
-        return;
-      }
-      // fill admin fault log
-      faultLogBody.innerHTML = rows.map(r=>{
-        const t = r.timestamp ? iso(r.timestamp) : '--';
-        return `<tr>
-          <td>${t}</td>
-          <td>${safeNum(r.transformerPower)}</td>
-          <td>${safeNum(r.consumerPower)}</td>
-          <td>${safeNum(r.diff)}</td>
-        </tr>`;
-      }).join('');
-
-      // consumer log shows same but row count maybe same
-      consumerLogBody.innerHTML = rows.map(r=>{
-        const t = r.timestamp ? iso(r.timestamp) : '--';
-        return `<tr>
-          <td>${t}</td>
-          <td>${safeNum(r.transformerPower)}</td>
-          <td>${safeNum(r.consumerPower)}</td>
-          <td>${safeNum(r.diff)}</td>
-        </tr>`;
-      }).join('');
+    function logout(){
+      location.reload();
     }
+    window.logout = logout;
 
-    // Check difference logic
-    let lastAlertState = false;
-    let lastLoggedTimestamp = 0;
-    const MIN_LOG_INTERVAL_MS = 5000; // avoid duplicate spam logs
+    // Realtime Data
+    let faultTimer = null;
+    let faultActive = false;
 
-    function checkDifferenceAndMaybeLog(){
-      const tP = Number(lastTransformer.Power) || 0;
-      const cP = Number(lastConsumer.Power) || 0;
-      const diff = Math.round((tP - cP) * 100)/100;
+    function startAdmin(){
+      const tRef = ref(db, "ESP32_1");
+      const cRef = ref(db, "ESP32_2");
+      const faultRef = ref(db, "FaultLogs");
 
-      // only if transformer power is greater than consumer by threshold
-      if (!isNaN(diff) && diff > DIFF_THRESHOLD) {
-        // show alert
-        alertBanner.classList.remove('hidden');
-        transformerCard.classList.add('blink');
-        consumerCard.classList.add('blink');
+      let chartCtx = document.getElementById("powerChart").getContext("2d");
+      let powerChart = new Chart(chartCtx, {
+        type: "line",
+        data: { labels: [], datasets: [
+          { label: "Transformer Power", data: [], borderColor: "red", fill: false },
+          { label: "Consumer Power", data: [], borderColor: "blue", fill: false }
+        ]},
+        options: { scales: { x: { title: { display: true, text: "Time" } }, y: { beginAtZero: true }}}
+      });
 
-        // log fault to DB (but prevent duplicates in quick succession)
-        const now = Date.now();
-        if (now - lastLoggedTimestamp > MIN_LOG_INTERVAL_MS) {
-          lastLoggedTimestamp = now;
-          // push a new fault
-          const newRef = push(faultsRef);
-          set(newRef, {
-            timestamp: now,
-            transformerPower: tP,
-            consumerPower: cP,
-            diff: diff
-          }).catch(err => console.error('Failed to push fault', err));
+      onValue(tRef, (snapshot)=>{
+        let d = snapshot.val();
+        if(!d) return;
+        document.getElementById("tVolt").innerText = d.Voltage;
+        document.getElementById("tCurr").innerText = d.Current;
+        document.getElementById("tPower").innerText = d.Power;
+        document.getElementById("tEnergy").innerText = d.Energy;
+        document.getElementById("tFreq").innerText = d.Frequency;
+        document.getElementById("tPF").innerText = d.PowerFactor;
+
+        // Update chart
+        let now = new Date().toLocaleTimeString();
+        powerChart.data.labels.push(now);
+        powerChart.data.datasets[0].data.push(d.Power);
+        if(powerChart.data.labels.length>20){ // keep last 20 points
+          powerChart.data.labels.shift();
+          powerChart.data.datasets[0].data.shift();
+          powerChart.data.datasets[1].data.shift();
         }
-      } else {
-        // clear alert if no active fault
-        alertBanner.classList.add('hidden');
-        transformerCard.classList.remove('blink');
-        consumerCard.classList.remove('blink');
+        powerChart.update();
+      });
+
+      onValue(cRef, (snapshot)=>{
+        let d = snapshot.val();
+        if(!d) return;
+        document.getElementById("cVolt").innerText = d.Voltage;
+        document.getElementById("cCurr").innerText = d.Current;
+        document.getElementById("cPower").innerText = d.Power;
+        document.getElementById("cEnergy").innerText = d.Energy;
+        document.getElementById("cFreq").innerText = d.Frequency;
+        document.getElementById("cPF").innerText = d.PowerFactor;
+
+        // push consumer power to chart
+        powerChart.data.datasets[1].data.push(d.Power);
+        powerChart.update();
+
+        checkFault();
+      });
+
+      function checkFault(){
+        let tPower = parseFloat(document.getElementById("tPower").innerText||0);
+        let cPower = parseFloat(document.getElementById("cPower").innerText||0);
+        if(tPower - cPower > 30){
+          if(!faultTimer){
+            faultTimer = setTimeout(()=>{
+              faultActive = true;
+              document.body.classList.add("alert");
+              let log = "⚠️ Power Theft Detected! Transformer: "+tPower+"W Consumer: "+cPower+"W at "+new Date().toLocaleTimeString();
+              let logDiv = document.getElementById("faultLog");
+              logDiv.innerHTML += "<p>"+log+"</p>";
+              push(faultRef, {msg: log, time: Date.now()});
+            }, 5000); // Only if continues for >5s
+          }
+        } else {
+          clearTimeout(faultTimer);
+          faultTimer = null;
+          if(faultActive){
+            document.body.classList.remove("alert");
+            faultActive=false;
+          }
+        }
       }
+
+      onValue(faultRef, (snapshot)=>{
+        let logs = snapshot.val();
+        if(!logs) return;
+        let logDiv = document.getElementById("faultLog");
+        logDiv.innerHTML="";
+        Object.values(logs).forEach(l=>{
+          logDiv.innerHTML+="<p>"+l.msg+"</p>";
+        });
+      });
     }
 
-    // make sure the page remains responsive even if DB has no nodes
-    // You can use Firebase console to populate ESP32_1 and ESP32_2 nodes.
-    // Example structure you already used:
-    // ESP32_1: { Voltage:229.5, Current:0.5, Power:120.3, Energy:0.87, Frequency:49.98, PowerFactor:0.96 }
-    // ESP32_2: { Voltage:230.1, Current:0.72, Power:166.0, Energy:1.20, Frequency:50.02, PowerFactor:0.98 }
+    function startConsumer(){
+      const cRef = ref(db, "ESP32_2");
+      const faultRef = ref(db, "FaultLogs");
 
-    // Helpful: show console warning if DB is not reachable
-    setTimeout(async ()=>{
-      try {
-        const snapshot = await get(ref(db, '/'));
-        // no-op: hits DB to confirm connection
-        console.log('Firebase root snapshot loaded');
-      } catch (err) {
-        console.warn('Could not reach Firebase DB. Check config & DB rules.', err);
-      }
-    }, 800);
+      onValue(cRef, (snapshot)=>{
+        let d = snapshot.val();
+        if(!d) return;
+        document.getElementById("cVolt2").innerText = d.Voltage;
+        document.getElementById("cCurr2").innerText = d.Current;
+        document.getElementById("cPower2").innerText = d.Power;
+        document.getElementById("cEnergy2").innerText = d.Energy;
+        document.getElementById("cFreq2").innerText = d.Frequency;
+        document.getElementById("cPF2").innerText = d.PowerFactor;
+      });
 
-    // small UX: allow login by pressing Enter on username too
-    usernameEl.addEventListener('keyup', (e)=> { if (e.key === 'Enter') passwordEl.focus(); });
+      onValue(faultRef, (snapshot)=>{
+        let logs = snapshot.val();
+        if(!logs) return;
+        let logDiv = document.getElementById("faultLog2");
+        logDiv.innerHTML="";
+        Object.values(logs).forEach(l=>{
+          logDiv.innerHTML+="<p>"+l.msg+"</p>";
+        });
+      });
+    }
 
+    // Show login first
+    document.getElementById("loginBox").style.display="block";
   </script>
 </body>
 </html>
