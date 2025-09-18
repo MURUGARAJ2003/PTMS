@@ -2,28 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Power Theft Detection</title>
+  <title>Power Theft Monitoring</title>
   <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js" type="module"></script>
   <script src="https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js" type="module"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; }
-    #loginBox, #adminPage, #consumerPage { display: none; }
-    table { margin: 20px auto; border-collapse: collapse; width: 80%; }
-    th, td { padding: 10px; border: 1px solid #333; }
-    .alert { animation: blink 1s infinite; background: red; color: white; padding: 10px; }
-    @keyframes blink {
-      0% { background: red; }
-      50% { background: yellow; color:black; }
-      100% { background: red; }
-    }
+    body { font-family: Arial, sans-serif; text-align: center; background: #f5f5f5; }
+    .hidden { display: none; }
+    .blink { animation: blink 1s infinite; }
+    @keyframes blink { 50% { background-color: red; color:white; } }
+    .container { margin: 20px auto; padding: 20px; width: 90%; background: white; border-radius: 10px; }
+    table { margin: 10px auto; border-collapse: collapse; width: 80%; }
+    table, th, td { border: 1px solid black; padding: 6px; text-align: center; }
+    button { margin: 10px; padding: 8px 15px; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>⚡ Power Theft Monitoring System</h1>
+  <h1>🔌 Power Theft Monitoring System</h1>
 
-  <!-- Login Box -->
-  <div id="loginBox">
+  <!-- Login -->
+  <div id="loginDiv" class="container">
     <h2>Login</h2>
     <input type="text" id="userid" placeholder="User ID"><br><br>
     <input type="password" id="password" placeholder="Password"><br><br>
@@ -31,219 +29,225 @@
   </div>
 
   <!-- Admin Page -->
-  <div id="adminPage">
-    <h2>Admin Dashboard</h2>
-    <h3>Transformer Side (ESP32-1)</h3>
-    <table>
-      <tr><th>Voltage</th><td id="tVolt"></td></tr>
-      <tr><th>Current</th><td id="tCurr"></td></tr>
-      <tr><th>Power</th><td id="tPower"></td></tr>
-      <tr><th>Energy</th><td id="tEnergy"></td></tr>
-      <tr><th>Frequency</th><td id="tFreq"></td></tr>
-      <tr><th>Power Factor</th><td id="tPF"></td></tr>
-    </table>
+  <div id="adminPage" class="container hidden">
+    <h2>Admin Dashboard (Transformer + Consumer)</h2>
+    <div id="alertBox"></div>
 
-    <h3>Consumer Side (ESP32-2)</h3>
-    <table>
-      <tr><th>Voltage</th><td id="cVolt"></td></tr>
-      <tr><th>Current</th><td id="cCurr"></td></tr>
-      <tr><th>Power</th><td id="cPower"></td></tr>
-      <tr><th>Energy</th><td id="cEnergy"></td></tr>
-      <tr><th>Frequency</th><td id="cFreq"></td></tr>
-      <tr><th>Power Factor</th><td id="cPF"></td></tr>
-    </table>
+    <h3>Transformer (ESP32-1)</h3>
+    <div id="transformerData"></div>
+    <canvas id="transformerChart"></canvas>
+
+    <h3>Consumer (ESP32-2)</h3>
+    <div id="consumerData"></div>
+    <canvas id="consumerChart"></canvas>
 
     <h3>Fault Log</h3>
-    <div id="faultLog"></div>
-
-    <h3>Power Graph</h3>
-    <canvas id="powerChart" width="600" height="300"></canvas>
-
+    <table id="faultTable">
+      <tr><th>Timestamp</th><th>Transformer Power (W)</th><th>Consumer Power (W)</th><th>Difference (W)</th></tr>
+    </table>
+    <button onclick="downloadLog()">Download Log (CSV)</button>
     <button onclick="logout()">Logout</button>
   </div>
 
   <!-- Consumer Page -->
-  <div id="consumerPage">
+  <div id="consumerPage" class="container hidden">
     <h2>Consumer Dashboard</h2>
-    <h3>Consumer Side (ESP32-2)</h3>
-    <table>
-      <tr><th>Voltage</th><td id="cVolt2"></td></tr>
-      <tr><th>Current</th><td id="cCurr2"></td></tr>
-      <tr><th>Power</th><td id="cPower2"></td></tr>
-      <tr><th>Energy</th><td id="cEnergy2"></td></tr>
-      <tr><th>Frequency</th><td id="cFreq2"></td></tr>
-      <tr><th>Power Factor</th><td id="cPF2"></td></tr>
-    </table>
+    <div id="consumerDataOnly"></div>
+    <canvas id="consumerOnlyChart"></canvas>
 
     <h3>Fault Log</h3>
-    <div id="faultLog2"></div>
-
+    <table id="consumerFaultTable">
+      <tr><th>Timestamp</th><th>Transformer Power (W)</th><th>Consumer Power (W)</th><th>Difference (W)</th></tr>
+    </table>
+    <button onclick="downloadLog()">Download Log (CSV)</button>
     <button onclick="logout()">Logout</button>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+<script type="module">
+  // ---------------- Firebase Setup ----------------
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-    // Firebase Config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDieP1yWZCYfw22llojBCY_rBk0vRwEH7k",
-      authDomain: "iot-based-power-theft.firebaseapp.com",
-      databaseURL: "https://iot-based-power-theft-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "iot-based-power-theft",
-      storageBucket: "iot-based-power-theft.appspot.com",
-      messagingSenderId: "300681383944",
-      appId: "1:300681383944:web:d9447408905b8afd6981bd"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+  const firebaseConfig = {
+    apiKey: "AIzaSyDieP1yWZCYfw22llojBCY_rBk0vRwEH7k",
+    authDomain: "iot-based-power-theft.firebaseapp.com",
+    databaseURL: "https://iot-based-power-theft-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "iot-based-power-theft",
+    storageBucket: "iot-based-power-theft.appspot.com",
+    messagingSenderId: "300681383944",
+    appId: "1:300681383944:web:d9447408905b8afd6981bd"
+  };
 
-    // Login System
-    function login() {
-      let id = document.getElementById("userid").value;
-      let pass = document.getElementById("password").value;
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-      if(id==="admin123" && pass==="admin123"){
-        document.getElementById("loginBox").style.display="none";
-        document.getElementById("adminPage").style.display="block";
-        startAdmin();
+  // ---------------- Variables ----------------
+  let userType = "";  
+  let faultLog = [];
+  let faultTimer = null;
+  let faultActive = false;
+
+  // Chart.js setup
+  const transformerChart = new Chart(document.getElementById("transformerChart"), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: "Transformer Power (W)", data: [], borderColor: "blue" }] }
+  });
+  const consumerChart = new Chart(document.getElementById("consumerChart"), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: "Consumer Power (W)", data: [], borderColor: "green" }] }
+  });
+  const consumerOnlyChart = new Chart(document.getElementById("consumerOnlyChart"), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: "Consumer Power (W)", data: [], borderColor: "green" }] }
+  });
+
+  // ---------------- Login ----------------
+  window.login = function() {
+    const id = document.getElementById("userid").value;
+    const pass = document.getElementById("password").value;
+
+    if (id==="admin123" && pass==="admin123") {
+      userType="admin";
+      document.getElementById("loginDiv").classList.add("hidden");
+      document.getElementById("adminPage").classList.remove("hidden");
+      loadData();
+    }
+    else if (id==="consumer123" && pass==="consumer123") {
+      userType="consumer";
+      document.getElementById("loginDiv").classList.add("hidden");
+      document.getElementById("consumerPage").classList.remove("hidden");
+      loadData();
+    }
+    else {
+      alert("❌ Invalid credentials!");
+    }
+  }
+
+  window.logout = function() {
+    location.reload();
+  }
+
+  // ---------------- Data Load ----------------
+  function loadData(){
+    const tRef = ref(db, "ESP32_1");
+    const cRef = ref(db, "ESP32_2");
+
+    onValue(tRef, snap => {
+      if(!snap.exists()) return;
+      const data = snap.val();
+      updateTransformer(data);
+    });
+    onValue(cRef, snap => {
+      if(!snap.exists()) return;
+      const data = snap.val();
+      updateConsumer(data);
+    });
+  }
+
+  // ---------------- Update UI ----------------
+  function updateTransformer(data){
+    if(userType==="admin"){
+      document.getElementById("transformerData").innerHTML = `
+        Voltage: ${data.Voltage} V<br>
+        Current: ${data.Current} A<br>
+        Power: ${data.Power} W<br>
+        Energy: ${data.Energy} kWh<br>
+        PF: ${data.PF}<br>
+        Freq: ${data.Freq} Hz
+      `;
+      addData(transformerChart, data.Power);
+    }
+    checkFault();
+  }
+
+  function updateConsumer(data){
+    if(userType==="admin"){
+      document.getElementById("consumerData").innerHTML = `
+        Voltage: ${data.Voltage} V<br>
+        Current: ${data.Current} A<br>
+        Power: ${data.Power} W<br>
+        Energy: ${data.Energy} kWh<br>
+        PF: ${data.PF}<br>
+        Freq: ${data.Freq} Hz
+      `;
+      addData(consumerChart, data.Power);
+    }
+    if(userType==="consumer"){
+      document.getElementById("consumerDataOnly").innerHTML = `
+        Voltage: ${data.Voltage} V<br>
+        Current: ${data.Current} A<br>
+        Power: ${data.Power} W<br>
+        Energy: ${data.Energy} kWh<br>
+        PF: ${data.PF}<br>
+        Freq: ${data.Freq} Hz
+      `;
+      addData(consumerOnlyChart, data.Power);
+    }
+    checkFault();
+  }
+
+  function addData(chart, value){
+    const now = new Date().toLocaleTimeString();
+    chart.data.labels.push(now);
+    chart.data.datasets[0].data.push(value);
+    if(chart.data.labels.length > 20){
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    chart.update();
+  }
+
+  // ---------------- Fault Detection ----------------
+  function checkFault(){
+    const tPower = transformerChart.data.datasets[0].data.slice(-1)[0];
+    const cPower = (userType==="admin" ? consumerChart.data.datasets[0].data.slice(-1)[0] : consumerOnlyChart.data.datasets[0].data.slice(-1)[0]);
+
+    if(!tPower || !cPower) return;
+
+    const diff = tPower - cPower;
+    if(diff > 30){
+      if(!faultTimer){
+        faultTimer = setTimeout(() => {
+          logFault(tPower, cPower, diff);
+          document.body.classList.add("blink");
+          faultActive = true;
+        }, 5000); // only if persists for 5s
       }
-      else if(id==="consumer123" && pass==="consumer123"){
-        document.getElementById("loginBox").style.display="none";
-        document.getElementById("consumerPage").style.display="block";
-        startConsumer();
-      } else {
-        alert("Invalid Login!");
+    } else {
+      clearTimeout(faultTimer);
+      faultTimer=null;
+      if(faultActive){
+        document.body.classList.remove("blink");
+        faultActive=false;
       }
     }
-    window.login = login;
+  }
 
-    function logout(){
-      location.reload();
-    }
-    window.logout = logout;
+  function logFault(tp, cp, diff){
+    const ts = new Date().toLocaleString();
+    const row = `<tr><td>${ts}</td><td>${tp}</td><td>${cp}</td><td>${diff}</td></tr>`;
+    faultLog.push({Timestamp: ts, Transformer: tp, Consumer: cp, Difference: diff});
 
-    // Realtime Data
-    let faultTimer = null;
-    let faultActive = false;
+    if(userType==="admin")
+      document.getElementById("faultTable").innerHTML += row;
+    if(userType==="consumer")
+      document.getElementById("consumerFaultTable").innerHTML += row;
+  }
 
-    function startAdmin(){
-      const tRef = ref(db, "ESP32_1");
-      const cRef = ref(db, "ESP32_2");
-      const faultRef = ref(db, "FaultLogs");
-
-      let chartCtx = document.getElementById("powerChart").getContext("2d");
-      let powerChart = new Chart(chartCtx, {
-        type: "line",
-        data: { labels: [], datasets: [
-          { label: "Transformer Power", data: [], borderColor: "red", fill: false },
-          { label: "Consumer Power", data: [], borderColor: "blue", fill: false }
-        ]},
-        options: { scales: { x: { title: { display: true, text: "Time" } }, y: { beginAtZero: true }}}
-      });
-
-      onValue(tRef, (snapshot)=>{
-        let d = snapshot.val();
-        if(!d) return;
-        document.getElementById("tVolt").innerText = d.Voltage;
-        document.getElementById("tCurr").innerText = d.Current;
-        document.getElementById("tPower").innerText = d.Power;
-        document.getElementById("tEnergy").innerText = d.Energy;
-        document.getElementById("tFreq").innerText = d.Frequency;
-        document.getElementById("tPF").innerText = d.PowerFactor;
-
-        // Update chart
-        let now = new Date().toLocaleTimeString();
-        powerChart.data.labels.push(now);
-        powerChart.data.datasets[0].data.push(d.Power);
-        if(powerChart.data.labels.length>20){ // keep last 20 points
-          powerChart.data.labels.shift();
-          powerChart.data.datasets[0].data.shift();
-          powerChart.data.datasets[1].data.shift();
-        }
-        powerChart.update();
-      });
-
-      onValue(cRef, (snapshot)=>{
-        let d = snapshot.val();
-        if(!d) return;
-        document.getElementById("cVolt").innerText = d.Voltage;
-        document.getElementById("cCurr").innerText = d.Current;
-        document.getElementById("cPower").innerText = d.Power;
-        document.getElementById("cEnergy").innerText = d.Energy;
-        document.getElementById("cFreq").innerText = d.Frequency;
-        document.getElementById("cPF").innerText = d.PowerFactor;
-
-        // push consumer power to chart
-        powerChart.data.datasets[1].data.push(d.Power);
-        powerChart.update();
-
-        checkFault();
-      });
-
-      function checkFault(){
-        let tPower = parseFloat(document.getElementById("tPower").innerText||0);
-        let cPower = parseFloat(document.getElementById("cPower").innerText||0);
-        if(tPower - cPower > 30){
-          if(!faultTimer){
-            faultTimer = setTimeout(()=>{
-              faultActive = true;
-              document.body.classList.add("alert");
-              let log = "⚠️ Power Theft Detected! Transformer: "+tPower+"W Consumer: "+cPower+"W at "+new Date().toLocaleTimeString();
-              let logDiv = document.getElementById("faultLog");
-              logDiv.innerHTML += "<p>"+log+"</p>";
-              push(faultRef, {msg: log, time: Date.now()});
-            }, 5000); // Only if continues for >5s
-          }
-        } else {
-          clearTimeout(faultTimer);
-          faultTimer = null;
-          if(faultActive){
-            document.body.classList.remove("alert");
-            faultActive=false;
-          }
-        }
-      }
-
-      onValue(faultRef, (snapshot)=>{
-        let logs = snapshot.val();
-        if(!logs) return;
-        let logDiv = document.getElementById("faultLog");
-        logDiv.innerHTML="";
-        Object.values(logs).forEach(l=>{
-          logDiv.innerHTML+="<p>"+l.msg+"</p>";
-        });
-      });
-    }
-
-    function startConsumer(){
-      const cRef = ref(db, "ESP32_2");
-      const faultRef = ref(db, "FaultLogs");
-
-      onValue(cRef, (snapshot)=>{
-        let d = snapshot.val();
-        if(!d) return;
-        document.getElementById("cVolt2").innerText = d.Voltage;
-        document.getElementById("cCurr2").innerText = d.Current;
-        document.getElementById("cPower2").innerText = d.Power;
-        document.getElementById("cEnergy2").innerText = d.Energy;
-        document.getElementById("cFreq2").innerText = d.Frequency;
-        document.getElementById("cPF2").innerText = d.PowerFactor;
-      });
-
-      onValue(faultRef, (snapshot)=>{
-        let logs = snapshot.val();
-        if(!logs) return;
-        let logDiv = document.getElementById("faultLog2");
-        logDiv.innerHTML="";
-        Object.values(logs).forEach(l=>{
-          logDiv.innerHTML+="<p>"+l.msg+"</p>";
-        });
-      });
-    }
-
-    // Show login first
-    document.getElementById("loginBox").style.display="block";
-  </script>
+  // ---------------- Download Log ----------------
+  window.downloadLog = function(){
+    if(faultLog.length===0){ alert("No faults logged!"); return; }
+    let csv = "Timestamp,Transformer Power,Consumer Power,Difference\n";
+    faultLog.forEach(r=>{
+      csv += `${r.Timestamp},${r.Transformer},${r.Consumer},${r.Difference}\n`;
+    });
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url;
+    a.download="fault_log.csv";
+    a.click();
+  }
+</script>
 </body>
 </html>
