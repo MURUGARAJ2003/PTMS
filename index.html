@@ -172,6 +172,14 @@
       background: #27ae60;
     }
     
+    .btn-warning {
+      background: var(--warning);
+    }
+    
+    .btn-warning:hover {
+      background: #e67e22;
+    }
+    
     /* Dashboard Grid */
     .dashboard-grid {
       display: grid;
@@ -197,25 +205,107 @@
       color: var(--secondary);
     }
     
-    /* Alert Box */
-    #alertBox {
+    /* Alert System */
+    .alert-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      max-width: 350px;
+    }
+    
+    .alert {
       padding: 15px;
+      margin-bottom: 15px;
       border-radius: 5px;
-      margin: 20px 0;
-      background: #fff4f4;
-      border-left: 4px solid var(--danger);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      animation: slideIn 0.5s ease;
+    }
+    
+    .alert-danger {
+      background: var(--danger);
+    }
+    
+    .alert-success {
+      background: var(--success);
+    }
+    
+    .alert-warning {
+      background: var(--warning);
+    }
+    
+    .alert i {
+      margin-right: 10px;
+      font-size: 1.2rem;
+    }
+    
+    .alert .close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.2rem;
+      cursor: pointer;
+      margin-left: 15px;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    /* Bill Calculation Modal */
+    .modal {
       display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      justify-content: center;
+      align-items: center;
     }
     
-    .alert-show {
-      display: block !important;
-      animation: pulse 1.5s infinite;
+    .modal-content {
+      background: white;
+      padding: 25px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     }
     
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.7; }
-      100% { opacity: 1; }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--light);
+    }
+    
+    .modal-title {
+      font-size: 1.3rem;
+      color: var(--primary);
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--gray);
     }
     
     /* Table Styles */
@@ -287,6 +377,12 @@
         flex-direction: column;
         gap: 10px;
       }
+      
+      .alert-container {
+        left: 20px;
+        right: 20px;
+        max-width: none;
+      }
     }
   </style>
 </head>
@@ -300,6 +396,22 @@
       <div id="currentTime" class="current-time"></div>
     </div>
   </header>
+
+  <!-- Alert Container -->
+  <div class="alert-container" id="alertContainer"></div>
+
+  <!-- Bill Calculation Modal -->
+  <div class="modal" id="billModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Monthly Bill Calculation</h3>
+        <button class="modal-close" onclick="closeBillModal()">&times;</button>
+      </div>
+      <div id="billContent">
+        <!-- Bill content will be inserted here -->
+      </div>
+    </div>
+  </div>
 
   <div class="container">
     <!-- Login Section -->
@@ -328,10 +440,6 @@
             <button onclick="downloadLog()" class="btn btn-success"><i class="fas fa-download"></i> Download Log</button>
             <button onclick="logout()" class="btn btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
           </div>
-        </div>
-        
-        <div id="alertBox" class="alert">
-          <i class="fas fa-exclamation-triangle"></i> Power theft detected! Significant difference between transformer and consumer readings.
         </div>
         
         <div class="dashboard-grid">
@@ -403,6 +511,7 @@
         <div class="card-header">
           <h2 class="card-title">Consumer Dashboard</h2>
           <div>
+            <button onclick="calculateBill()" class="btn btn-warning"><i class="fas fa-calculator"></i> Calculate Bill</button>
             <button onclick="downloadLog()" class="btn btn-success"><i class="fas fa-download"></i> Download Log</button>
             <button onclick="logout()" class="btn btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
           </div>
@@ -478,6 +587,9 @@
     let faultLog = [];
     let faultTimer = null;
     let faultActive = false;
+    let currentConsumerData = null;
+    let monthlyEnergy = 0;
+    const energyRate = 4.95; // ₹4.95 per kWh
 
     // Update current time
     function updateTime() {
@@ -559,6 +671,69 @@
       options: chartOptions
     });
 
+    // ---------------- Alert System ----------------
+    function showAlert(message, type = 'danger') {
+      const alertContainer = document.getElementById('alertContainer');
+      const alertId = 'alert-' + Date.now();
+      
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.id = alertId;
+      alert.innerHTML = `
+        <div>
+          <i class="fas fa-${type === 'danger' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+          ${message}
+        </div>
+        <button class="close" onclick="document.getElementById('${alertId}').remove()">&times;</button>
+      `;
+      
+      alertContainer.appendChild(alert);
+      
+      // Auto remove after 5 seconds
+      setTimeout(() => {
+        if (document.getElementById(alertId)) {
+          document.getElementById(alertId).remove();
+        }
+      }, 5000);
+    }
+
+    // ---------------- Bill Calculation ----------------
+    window.calculateBill = function() {
+      if (!currentConsumerData) {
+        showAlert('No consumer data available to calculate bill', 'warning');
+        return;
+      }
+      
+      // Calculate monthly energy (for demo, we'll use current energy * 30)
+      // In a real system, you would track energy consumption over time
+      monthlyEnergy = currentConsumerData.Energy * 30;
+      const billAmount = monthlyEnergy * energyRate;
+      
+      document.getElementById('billContent').innerHTML = `
+        <div class="data-item">
+          <span>Energy Consumption:</span>
+          <span class="data-value">${monthlyEnergy.toFixed(2)} kWh</span>
+        </div>
+        <div class="data-item">
+          <span>Rate:</span>
+          <span class="data-value">₹${energyRate.toFixed(2)}/kWh</span>
+        </div>
+        <div class="data-item" style="border-top: 2px solid var(--primary); margin-top: 10px; padding-top: 10px;">
+          <span style="font-weight: bold;">Total Amount:</span>
+          <span style="font-weight: bold; color: var(--primary);">₹${billAmount.toFixed(2)}</span>
+        </div>
+        <p style="margin-top: 15px; font-size: 0.9rem; color: var(--gray);">
+          Note: This is an estimate based on current consumption patterns.
+        </p>
+      `;
+      
+      document.getElementById('billModal').style.display = 'flex';
+    }
+
+    window.closeBillModal = function() {
+      document.getElementById('billModal').style.display = 'none';
+    }
+
     // ---------------- Login ----------------
     window.login = function() {
       const id = document.getElementById("userid").value;
@@ -569,20 +744,25 @@
         document.getElementById("loginDiv").classList.add("hidden");
         document.getElementById("adminPage").classList.remove("hidden");
         loadData();
+        showAlert('Admin login successful', 'success');
       }
       else if (id==="consumer123" && pass==="consumer123") {
         userType="consumer";
         document.getElementById("loginDiv").classList.add("hidden");
         document.getElementById("consumerPage").classList.remove("hidden");
         loadData();
+        showAlert('Consumer login successful', 'success');
       }
       else {
-        alert("❌ Invalid credentials!");
+        showAlert('Invalid credentials. Please try again.', 'danger');
       }
     }
 
     window.logout = function() {
-      location.reload();
+      showAlert('Logout successful', 'success');
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
     }
 
     // ---------------- Data Load ----------------
@@ -599,6 +779,7 @@
       onValue(cRef, snap => {
         if(!snap.exists()) return;
         const data = snap.val();
+        currentConsumerData = data;
         updateConsumer(data);
       });
     }
@@ -723,16 +904,20 @@
         if(!faultTimer){
           faultTimer = setTimeout(() => {
             logFault(tPower, cPower, diff);
-            document.getElementById('alertBox').classList.add('alert-show');
+            showAlert(`Power theft detected! Difference: ${diff.toFixed(2)}W`, 'danger');
             document.body.classList.add("blink");
             faultActive = true;
+            
+            // Stop blinking after 10 seconds
+            setTimeout(() => {
+              document.body.classList.remove("blink");
+            }, 10000);
           }, 5000); // only if persists for 5s
         }
       } else {
         clearTimeout(faultTimer);
         faultTimer=null;
         if(faultActive){
-          document.getElementById('alertBox').classList.remove('alert-show');
           document.body.classList.remove("blink");
           faultActive=false;
         }
@@ -752,7 +937,10 @@
 
     // ---------------- Download Log ----------------
     window.downloadLog = function(){
-      if(faultLog.length===0){ alert("No faults logged!"); return; }
+      if(faultLog.length===0){ 
+        showAlert('No faults logged to download', 'warning');
+        return; 
+      }
       let csv = "Timestamp,Transformer Power,Consumer Power,Difference\n";
       faultLog.forEach(r=>{
         csv += `${r.Timestamp},${r.Transformer},${r.Consumer},${r.Difference}\n`;
@@ -763,12 +951,21 @@
       a.href=url;
       a.download="fault_log.csv";
       a.click();
+      showAlert('Fault log downloaded successfully', 'success');
     }
 
     // Add enter key login functionality
     document.getElementById("password").addEventListener("keypress", function(event) {
       if (event.key === "Enter") {
         login();
+      }
+    });
+
+    // Close modal if clicked outside
+    window.addEventListener('click', function(event) {
+      const modal = document.getElementById('billModal');
+      if (event.target === modal) {
+        closeBillModal();
       }
     });
   </script>
