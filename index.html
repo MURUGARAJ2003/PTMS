@@ -26,7 +26,7 @@
         .container {
             width: 100%;
             max-width: 1200px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             overflow: hidden;
@@ -47,10 +47,6 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-        }
-        
-        .logo i {
-            font-size: 32px;
         }
         
         .login-container {
@@ -301,6 +297,41 @@
             padding-top: 10px;
             border-top: 2px solid #ddd;
         }
+        
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .log-table th, .log-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .log-table th {
+            background: #1a2a6c;
+            color: white;
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-normal {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-theft {
+            background: #f44336;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -417,36 +448,21 @@
                     <div class="card-header">
                         <i class="fas fa-history"></i> Consumption History
                     </div>
-                    <table class="history-table">
-                        <thead>
-                            <tr>
-                                <th>Date & Time</th>
-                                <th>Energy (kWh)</th>
-                                <th>Power (W)</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="historyTable">
-                            <tr>
-                                <td>2023-10-15 14:30</td>
-                                <td>125.6</td>
-                                <td>850</td>
-                                <td>Normal</td>
-                            </tr>
-                            <tr>
-                                <td>2023-10-14 12:45</td>
-                                <td>121.8</td>
-                                <td>820</td>
-                                <td>Normal</td>
-                            </tr>
-                            <tr>
-                                <td>2023-10-13 15:20</td>
-                                <td>118.3</td>
-                                <td>790</td>
-                                <td>Normal</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div style="overflow-x: auto;">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Energy (kWh)</th>
+                                    <th>Power (W)</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTable">
+                                <!-- Data will be populated from Firebase -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -457,134 +473,135 @@
                 <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
             
-            <div class="cards-container">
-                <div class="card">
-                    <div class="card-header">
-                        <i class="fas fa-transformer"></i> Distribution Transformer (Board 1)
+            <div class="tabs">
+                <div class="tab active" onclick="switchAdminTab('currentData')">Current Data</div>
+                <div class="tab" onclick="switchAdminTab('faultLogs')">Fault Logs</div>
+                <div class="tab" onclick="switchAdminTab('billing')">Billing</div>
+            </div>
+            
+            <div class="tab-content active" id="currentData">
+                <div class="cards-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-transformer"></i> Distribution Transformer (Board 1)
+                        </div>
+                        <div class="reading">
+                            <span>Voltage:</span>
+                            <span class="reading-value" id="voltage1">0 V</span>
+                        </div>
+                        <div class="reading">
+                            <span>Current:</span>
+                            <span class="reading-value" id="current1">0 A</span>
+                        </div>
+                        <div class="reading">
+                            <span>Power:</span>
+                            <span class="reading-value" id="power1">0 W</span>
+                        </div>
+                        <div class="reading">
+                            <span>Energy:</span>
+                            <span class="reading-value" id="energy1">0 kWh</span>
+                        </div>
+                        <div class="reading">
+                            <span>Frequency:</span>
+                            <span class="reading-value" id="frequency1">0 Hz</span>
+                        </div>
+                        <div class="reading">
+                            <span>Power Factor:</span>
+                            <span class="reading-value" id="pf1">0</span>
+                        </div>
                     </div>
-                    <div class="reading">
-                        <span>Voltage:</span>
-                        <span class="reading-value" id="voltage1">0 V</span>
-                    </div>
-                    <div class="reading">
-                        <span>Current:</span>
-                        <span class="reading-value" id="current1">0 A</span>
-                    </div>
-                    <div class="reading">
-                        <span>Power:</span>
-                        <span class="reading-value" id="power1">0 W</span>
-                    </div>
-                    <div class="reading">
-                        <span>Energy:</span>
-                        <span class="reading-value" id="energy1">0 kWh</span>
-                    </div>
-                    <div class="reading">
-                        <span>Frequency:</span>
-                        <span class="reading-value" id="frequency1">0 Hz</span>
-                    </div>
-                    <div class="reading">
-                        <span>Power Factor:</span>
-                        <span class="reading-value" id="pf1">0</span>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-home"></i> House 111 (Board 2)
+                        </div>
+                        <div class="reading">
+                            <span>Voltage:</span>
+                            <span class="reading-value" id="adminVoltage2">0 V</span>
+                        </div>
+                        <div class="reading">
+                            <span>Current:</span>
+                            <span class="reading-value" id="adminCurrent2">0 A</span>
+                        </div>
+                        <div class="reading">
+                            <span>Power:</span>
+                            <span class="reading-value" id="adminPower2">0 W</span>
+                        </div>
+                        <div class="reading">
+                            <span>Energy:</span>
+                            <span class="reading-value" id="adminEnergy2">0 kWh</span>
+                        </div>
+                        <div class="reading">
+                            <span>Frequency:</span>
+                            <span class="reading-value" id="adminFrequency2">0 Hz</span>
+                        </div>
+                        <div class="reading">
+                            <span>Power Factor:</span>
+                            <span class="reading-value" id="adminPf2">0</span>
+                        </div>
                     </div>
                 </div>
                 
+                <div class="theft-alert" id="adminTheftAlert">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Power Theft Detected!</h3>
+                    <p>Difference between transformer and house power exceeds 50W.</p>
+                    <p>Transformer Power: <span id="transformerPower">0</span>W | House Power: <span id="housePower">0</span>W</p>
+                    <p>Difference: <span id="powerDifference">0</span>W</p>
+                    <button class="close-alert" onclick="closeAlert()">Acknowledge Alert</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="faultLogs">
                 <div class="card">
                     <div class="card-header">
-                        <i class="fas fa-home"></i> House 111 (Board 2)
+                        <i class="fas fa-clipboard-list"></i> Theft Alert Log
                     </div>
-                    <div class="reading">
-                        <span>Voltage:</span>
-                        <span class="reading-value" id="adminVoltage2">0 V</span>
-                    </div>
-                    <div class="reading">
-                        <span>Current:</span>
-                        <span class="reading-value" id="adminCurrent2">0 A</span>
-                    </div>
-                    <div class="reading">
-                        <span>Power:</span>
-                        <span class="reading-value" id="adminPower2">0 W</span>
-                    </div>
-                    <div class="reading">
-                        <span>Energy:</span>
-                        <span class="reading-value" id="adminEnergy2">0 kWh</span>
-                    </div>
-                    <div class="reading">
-                        <span>Frequency:</span>
-                        <span class="reading-value" id="adminFrequency2">0 Hz</span>
-                    </div>
-                    <div class="reading">
-                        <span>Power Factor:</span>
-                        <span class="reading-value" id="adminPf2">0</span>
+                    <div style="overflow-x: auto;">
+                        <table class="log-table">
+                            <thead>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Transformer Power</th>
+                                    <th>House Power</th>
+                                    <th>Difference</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="theftLogTable">
+                                <!-- Data will be populated from Firebase -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
             
-            <div class="theft-alert" id="adminTheftAlert">
-                <h3><i class="fas fa-exclamation-triangle"></i> Power Theft Detected!</h3>
-                <p>Difference between transformer and house power exceeds 20W.</p>
-                <p>Transformer Power: <span id="transformerPower">0</span>W | House Power: <span id="housePower">0</span>W</p>
-                <p>Difference: <span id="powerDifference">0</span>W</p>
-                <button class="close-alert" onclick="closeAlert()">Acknowledge Alert</button>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-file-invoice-dollar"></i> House 111 Bill Calculation
-                </div>
-                <button onclick="calculateAdminBill()">Calculate Bill</button>
-                
-                <div class="bill-details" id="adminBillDetails" style="display: none;">
-                    <h3 style="margin: 20px 0 10px;">Bill Details</h3>
-                    <div class="bill-row">
-                        <span>Energy Consumption:</span>
-                        <span id="adminConsumption">0 kWh</span>
+            <div class="tab-content" id="billing">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-file-invoice-dollar"></i> House 111 Bill Calculation
                     </div>
-                    <div class="bill-row">
-                        <span>Base Rate (0-200 units):</span>
-                        <span id="adminBaseRate">₹0.00</span>
-                    </div>
-                    <div class="bill-row">
-                        <span>Additional Charges:</span>
-                        <span id="adminAdditionalCharges">₹0.00</span>
-                    </div>
-                    <div class="bill-row bill-total">
-                        <span>Total Amount:</span>
-                        <span id="adminTotalAmount">₹0.00</span>
+                    <button onclick="calculateAdminBill()">Calculate Bill</button>
+                    
+                    <div class="bill-details" id="adminBillDetails" style="display: none;">
+                        <h3 style="margin: 20px 0 10px;">Bill Details</h3>
+                        <div class="bill-row">
+                            <span>Energy Consumption:</span>
+                            <span id="adminConsumption">0 kWh</span>
+                        </div>
+                        <div class="bill-row">
+                            <span>Base Rate (0-200 units):</span>
+                            <span id="adminBaseRate">₹0.00</span>
+                        </div>
+                        <div class="bill-row">
+                            <span>Additional Charges:</span>
+                            <span id="adminAdditionalCharges">₹0.00</span>
+                        </div>
+                        <div class="bill-row bill-total">
+                            <span>Total Amount:</span>
+                            <span id="adminTotalAmount">₹0.00</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-clipboard-list"></i> Theft Alert Log
-                </div>
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>Date & Time</th>
-                            <th>Transformer Power</th>
-                            <th>House Power</th>
-                            <th>Difference</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="theftLogTable">
-                        <tr>
-                            <td>2023-10-15 14:30</td>
-                            <td>1250W</td>
-                            <td>850W</td>
-                            <td>400W</td>
-                            <td>Resolved</td>
-                        </tr>
-                        <tr>
-                            <td>2023-10-10 09:15</td>
-                            <td>1100W</td>
-                            <td>750W</td>
-                            <td>350W</td>
-                            <td>Resolved</td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
         </div>
         
@@ -631,11 +648,13 @@
                 loginPage.style.display = 'none';
                 consumerDashboard.style.display = 'block';
                 startDataMonitoring('consumer');
+                loadHistoryData();
             } else if (username === 'admin111' && password === 'admin111') {
                 // Admin login
                 loginPage.style.display = 'none';
                 adminDashboard.style.display = 'block';
                 startDataMonitoring('admin');
+                loadTheftLogs();
             } else {
                 loginMessage.style.display = 'block';
             }
@@ -651,7 +670,7 @@
             loginMessage.style.display = 'none';
         }
         
-        // Tab switching
+        // Tab switching for consumer
         function switchTab(tabId) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -660,10 +679,21 @@
             document.getElementById(tabId).classList.add('active');
         }
         
+        // Tab switching for admin
+        function switchAdminTab(tabId) {
+            document.querySelectorAll('#adminDashboard .tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('#adminDashboard .tab-content').forEach(content => content.classList.remove('active'));
+            
+            const tabIndex = {'currentData': 1, 'faultLogs': 2, 'billing': 3}[tabId];
+            document.querySelector(`#adminDashboard .tab:nth-child(${tabIndex})`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+        
         // Start monitoring data from Firebase
         function startDataMonitoring(userType) {
             const board1Ref = database.ref('sensor_data/board1');
             const board2Ref = database.ref('sensor_data/board2');
+            const theftLogRef = database.ref('theft_logs');
             
             board1Ref.on('value', (snapshot) => {
                 const data = snapshot.val();
@@ -681,6 +711,19 @@
                 const data = snapshot.val();
                 if (data) {
                     updateBoardData('2', data);
+                    
+                    // Store historical data
+                    storeHistoricalData(data);
+                }
+            });
+            
+            // Listen for new theft logs
+            theftLogRef.limitToLast(1).on('child_added', (snapshot) => {
+                if (userType === 'admin') {
+                    const log = snapshot.val();
+                    if (log && log.difference > 50) {
+                        showTheftAlert(log.transformerPower, log.housePower, log.difference);
+                    }
                 }
             });
         }
@@ -705,6 +748,78 @@
             }
         }
         
+        // Store historical data in Firebase
+        function storeHistoricalData(data) {
+            const timestamp = new Date().toISOString();
+            const historicalRef = database.ref('historical_data').push();
+            
+            historicalRef.set({
+                timestamp: timestamp,
+                voltage: data.voltage || 0,
+                current: data.current || 0,
+                power: data.power || 0,
+                energy: data.energy || 0,
+                frequency: data.frequency || 0,
+                pf: data.pf || 0,
+                status: 'normal'
+            });
+        }
+        
+        // Load historical data for consumer
+        function loadHistoryData() {
+            const historyRef = database.ref('historical_data').limitToLast(10);
+            
+            historyRef.on('value', (snapshot) => {
+                const historyTable = document.getElementById('historyTable');
+                historyTable.innerHTML = '';
+                
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    const row = document.createElement('tr');
+                    
+                    const date = new Date(data.timestamp);
+                    const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+                    
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>${data.energy.toFixed(3)} kWh</td>
+                        <td>${data.power.toFixed(1)} W</td>
+                        <td><span class="status-badge ${data.status === 'normal' ? 'status-normal' : 'status-theft'}">${data.status}</span></td>
+                    `;
+                    
+                    historyTable.appendChild(row);
+                });
+            });
+        }
+        
+        // Load theft logs for admin
+        function loadTheftLogs() {
+            const theftLogRef = database.ref('theft_logs').limitToLast(10);
+            
+            theftLogRef.on('value', (snapshot) => {
+                const theftLogTable = document.getElementById('theftLogTable');
+                theftLogTable.innerHTML = '';
+                
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    const row = document.createElement('tr');
+                    
+                    const date = new Date(data.timestamp);
+                    const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+                    
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>${data.transformerPower.toFixed(1)}W</td>
+                        <td>${data.housePower.toFixed(1)}W</td>
+                        <td>${data.difference.toFixed(1)}W</td>
+                        <td><span class="status-badge status-theft">Theft</span></td>
+                    `;
+                    
+                    theftLogTable.appendChild(row);
+                });
+            });
+        }
+        
         // Check for power theft
         function checkForPowerTheft(board1Data) {
             const board2PowerElement = document.getElementById('power2');
@@ -713,48 +828,47 @@
             
             const powerDifference = Math.abs(board1Power - board2Power);
             
-            if (powerDifference > 20) {
-                // Show theft alert
-                document.getElementById('adminTheftAlert').style.display = 'block';
-                document.getElementById('transformerPower').textContent = board1Power.toFixed(1);
-                document.getElementById('housePower').textContent = board2Power.toFixed(1);
-                document.getElementById('powerDifference').textContent = powerDifference.toFixed(1);
-                
-                // Show fullscreen alert
-                document.getElementById('fullscreenAlert').style.display = 'flex';
-                document.getElementById('alertTransformerPower').textContent = board1Power.toFixed(1);
-                document.getElementById('alertHousePower').textContent = board2Power.toFixed(1);
-                document.getElementById('alertPowerDifference').textContent = powerDifference.toFixed(1);
-                
-                // Play alert sound
-                playAlertSound();
-                
-                // Log the theft event
+            if (powerDifference > 50) {
+                // Log theft event to Firebase
                 logTheftEvent(board1Power, board2Power, powerDifference);
             }
+        }
+        
+        // Log theft event to Firebase
+        function logTheftEvent(transformerPower, housePower, difference) {
+            const timestamp = new Date().toISOString();
+            const theftLogRef = database.ref('theft_logs').push();
+            
+            theftLogRef.set({
+                timestamp: timestamp,
+                transformerPower: transformerPower,
+                housePower: housePower,
+                difference: difference
+            });
+        }
+        
+        // Show theft alert
+        function showTheftAlert(transformerPower, housePower, difference) {
+            // Show theft alert
+            document.getElementById('adminTheftAlert').style.display = 'block';
+            document.getElementById('transformerPower').textContent = transformerPower.toFixed(1);
+            document.getElementById('housePower').textContent = housePower.toFixed(1);
+            document.getElementById('powerDifference').textContent = difference.toFixed(1);
+            
+            // Show fullscreen alert
+            document.getElementById('fullscreenAlert').style.display = 'flex';
+            document.getElementById('alertTransformerPower').textContent = transformerPower.toFixed(1);
+            document.getElementById('alertHousePower').textContent = housePower.toFixed(1);
+            document.getElementById('alertPowerDifference').textContent = difference.toFixed(1);
+            
+            // Play alert sound
+            playAlertSound();
         }
         
         // Play alert sound
         function playAlertSound() {
             // In a real application, you would play an alert sound here
             console.log("Playing alert sound");
-        }
-        
-        // Log theft event
-        function logTheftEvent(transformerPower, housePower, difference) {
-            const now = new Date();
-            const dateTime = now.toLocaleString();
-            
-            const logTable = document.getElementById('theftLogTable');
-            const newRow = logTable.insertRow(0);
-            
-            newRow.innerHTML = `
-                <td>${dateTime}</td>
-                <td>${transformerPower.toFixed(1)}W</td>
-                <td>${housePower.toFixed(1)}W</td>
-                <td>${difference.toFixed(1)}W</td>
-                <td>Investigating</td>
-            `;
         }
         
         // Close alert
