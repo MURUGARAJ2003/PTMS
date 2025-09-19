@@ -1,0 +1,86 @@
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+#include <PZEM004Tv30.h>
+
+// ------------------ WiFi ------------------
+const char* ssid = "iPhone";
+const char* password = "murugaraj6385479706";
+
+// ------------------ Firebase ------------------
+#define FIREBASE_HOST "iot-based-power-theft-default-rtdb.asia-southeast1.firebasedatabase.app"
+#define FIREBASE_AUTH "Bpo9NEgrQwSij7mU7VsbhIEDqEAgeYp9yT3q0HS2"
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// ------------------ PZEM ------------------
+HardwareSerial pzemSerial(2); // UART2
+PZEM004Tv30 pzem(&pzemSerial, 16, 17);  // RX, TX
+
+// Change device name for each ESP32
+String deviceName = "ESP32_2";   // For second ESP32 → "ESP32_2"
+
+void setup() {
+  Serial.begin(115200);
+
+  // WiFi connection
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\n✅ Wi-Fi Connected!");
+
+  // Firebase setup
+  config.host = FIREBASE_HOST;
+  config.signer.tokens.legacy_token = FIREBASE_AUTH;
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+
+  Serial.println("✅ Firebase Initialized!");
+}
+
+void loop() {
+  float voltage   = pzem.voltage();
+  float current   = pzem.current();
+  float power     = pzem.power();
+  float energy    = pzem.energy();
+  float frequency = pzem.frequency();
+  float pf        = pzem.pf();
+
+  if (isnan(voltage)) {
+    Serial.println("⚠️ Error reading PZEM sensor!");
+    delay(2000);
+    return;
+  }
+
+  // Print readings on Serial Monitor
+  Serial.println("========== PZEM Readings ==========");
+  Serial.print("Voltage:    "); Serial.print(voltage);   Serial.println(" V");
+  Serial.print("Current:    "); Serial.print(current);   Serial.println(" A");
+  Serial.print("Power:      "); Serial.print(power);     Serial.println(" W");
+  Serial.print("Energy:     "); Serial.print(energy);    Serial.println(" kWh");
+  Serial.print("Frequency:  "); Serial.print(frequency); Serial.println(" Hz");
+  Serial.print("PowerFactor:"); Serial.println(pf);
+  Serial.println("==================================");
+
+  // Upload to Firebase
+  String basePath = "/" + deviceName;
+  Firebase.setFloat(fbdo, basePath + "/Voltage", voltage);
+  Firebase.setFloat(fbdo, basePath + "/Current", current);
+  Firebase.setFloat(fbdo, basePath + "/Power", power);
+  Firebase.setFloat(fbdo, basePath + "/Energy", energy);
+  Firebase.setFloat(fbdo, basePath + "/Frequency", frequency);
+  Firebase.setFloat(fbdo, basePath + "/PowerFactor", pf);
+
+  if (fbdo.httpCode() == 200) {
+    Serial.println("✅ Data uploaded to Firebase!");
+  } else {
+    Serial.print("❌ Firebase upload failed: ");
+    Serial.println(fbdo.errorReason());
+  }
+
+  delay(5000); // Upload every 5 seconds
+}
