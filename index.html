@@ -180,6 +180,14 @@
       background: #e67e22;
     }
     
+    .btn-info {
+      background: var(--secondary);
+    }
+    
+    .btn-info:hover {
+      background: #2980b9;
+    }
+    
     /* Dashboard Grid */
     .dashboard-grid {
       display: grid;
@@ -263,7 +271,7 @@
       }
     }
     
-    /* Bill Calculation Modal */
+    /* Modal Styles */
     .modal {
       display: none;
       position: fixed;
@@ -282,7 +290,9 @@
       padding: 25px;
       border-radius: 10px;
       width: 90%;
-      max-width: 500px;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
       box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     }
     
@@ -347,6 +357,34 @@
       margin: 20px 0;
     }
     
+    /* Tabs */
+    .tabs {
+      display: flex;
+      margin-bottom: 15px;
+      border-bottom: 1px solid var(--light);
+    }
+    
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: var(--transition);
+      border-bottom: 3px solid transparent;
+    }
+    
+    .tab.active {
+      border-bottom: 3px solid var(--secondary);
+      color: var(--secondary);
+      font-weight: 500;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
     /* Footer */
     footer {
       text-align: center;
@@ -405,10 +443,82 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">Monthly Bill Calculation</h3>
-        <button class="modal-close" onclick="closeBillModal()">&times;</button>
+        <button class="modal-close" onclick="closeModal('billModal')">&times;</button>
       </div>
       <div id="billContent">
         <!-- Bill content will be inserted here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Historical Data Modal -->
+  <div class="modal" id="historicalDataModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Historical Data</h3>
+        <button class="modal-close" onclick="closeModal('historicalDataModal')">&times;</button>
+      </div>
+      <div class="tabs" id="historicalDataTabs">
+        <div class="tab active" data-target="transformerHistorical">Transformer Data</div>
+        <div class="tab" data-target="consumerHistorical">Consumer Data</div>
+        <div class="tab" data-target="faultHistorical">Fault Log</div>
+      </div>
+      <div class="tab-content active" id="transformerHistorical">
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Voltage (V)</th>
+                <th>Current (A)</th>
+                <th>Power (W)</th>
+                <th>Energy (kWh)</th>
+                <th>Power Factor</th>
+                <th>Frequency (Hz)</th>
+              </tr>
+            </thead>
+            <tbody id="transformerHistoricalBody">
+              <!-- Historical transformer data will be inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-content" id="consumerHistorical">
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Voltage (V)</th>
+                <th>Current (A)</th>
+                <th>Power (W)</th>
+                <th>Energy (kWh)</th>
+                <th>Power Factor</th>
+                <th>Frequency (Hz)</th>
+              </tr>
+            </thead>
+            <tbody id="consumerHistoricalBody">
+              <!-- Historical consumer data will be inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-content" id="faultHistorical">
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Transformer Power (W)</th>
+                <th>Consumer Power (W)</th>
+                <th>Difference (W)</th>
+              </tr>
+            </thead>
+            <tbody id="faultHistoricalBody">
+              <!-- Historical fault data will be inserted here -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -437,6 +547,7 @@
         <div class="card-header">
           <h2 class="card-title">Admin Dashboard</h2>
           <div>
+            <button onclick="viewHistoricalData()" class="btn btn-info"><i class="fas fa-history"></i> View Historical Data</button>
             <button onclick="downloadLog()" class="btn btn-success"><i class="fas fa-download"></i> Download Log</button>
             <button onclick="logout()" class="btn btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
           </div>
@@ -511,6 +622,7 @@
         <div class="card-header">
           <h2 class="card-title">Consumer Dashboard</h2>
           <div>
+            <button onclick="viewHistoricalData()" class="btn btn-info"><i class="fas fa-history"></i> View Historical Data</button>
             <button onclick="calculateBill()" class="btn btn-warning"><i class="fas fa-calculator"></i> Calculate Bill</button>
             <button onclick="downloadLog()" class="btn btn-success"><i class="fas fa-download"></i> Download Log</button>
             <button onclick="logout()" class="btn btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
@@ -775,8 +887,8 @@
       document.getElementById('billModal').style.display = 'flex';
     }
 
-    window.closeBillModal = function() {
-      document.getElementById('billModal').style.display = 'none';
+    window.closeModal = function(modalId) {
+      document.getElementById(modalId).style.display = 'none';
     }
 
     // ---------------- Login ----------------
@@ -1014,6 +1126,114 @@
       showAlert('Fault log downloaded successfully', 'success');
     }
 
+    // ---------------- Historical Data View ----------------
+    window.viewHistoricalData = function() {
+      // Show the modal
+      document.getElementById('historicalDataModal').style.display = 'flex';
+      
+      // Load data based on user type
+      if (userType === 'admin') {
+        loadHistoricalData('transformer');
+        loadHistoricalData('consumer');
+        loadHistoricalFaultData();
+      } else {
+        // For consumer, only show consumer data and faults
+        loadHistoricalData('consumer');
+        loadHistoricalFaultData();
+        
+        // Hide transformer tab for consumer
+        document.querySelector('[data-target="transformerHistorical"]').style.display = 'none';
+      }
+    }
+
+    function loadHistoricalData(device) {
+      const ref = db.ref(`power_data/${device}`);
+      ref.orderByKey().limitToLast(50).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const tbody = document.getElementById(`${device}HistoricalBody`);
+        tbody.innerHTML = '';
+        
+        if (!data) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No historical data available</td></tr>';
+          return;
+        }
+        
+        // Convert to array and sort by timestamp (key) in descending order
+        const dataArray = [];
+        for (let key in data) {
+          dataArray.push({ ...data[key], timestamp: key });
+        }
+        dataArray.sort((a, b) => b.timestamp - a.timestamp);
+        
+        dataArray.forEach(record => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${new Date(parseInt(record.timestamp)).toLocaleString()}</td>
+            <td>${record.Voltage || 'N/A'}</td>
+            <td>${record.Current || 'N/A'}</td>
+            <td>${record.Power || 'N/A'}</td>
+            <td>${record.Energy || 'N/A'}</td>
+            <td>${record.PF || 'N/A'}</td>
+            <td>${record.Freq || 'N/A'}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      }).catch(error => {
+        console.error('Error loading historical data:', error);
+        document.getElementById(`${device}HistoricalBody`).innerHTML = 
+          '<tr><td colspan="7" style="text-align: center;">Error loading data</td></tr>';
+      });
+    }
+
+    function loadHistoricalFaultData() {
+      const ref = db.ref('fault_logs');
+      ref.orderByKey().limitToLast(50).once('value').then(snapshot => {
+        const data = snapshot.val();
+        const tbody = document.getElementById('faultHistoricalBody');
+        tbody.innerHTML = '';
+        
+        if (!data) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No fault data available</td></tr>';
+          return;
+        }
+        
+        // Convert to array and sort by timestamp (key) in descending order
+        const dataArray = [];
+        for (let key in data) {
+          dataArray.push({ ...data[key], timestamp: key });
+        }
+        dataArray.sort((a, b) => b.timestamp - a.timestamp);
+        
+        dataArray.forEach(record => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${new Date(parseInt(record.timestamp)).toLocaleString()}</td>
+            <td>${record.transformerPower || 'N/A'}</td>
+            <td>${record.consumerPower || 'N/A'}</td>
+            <td>${record.difference || 'N/A'}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      }).catch(error => {
+        console.error('Error loading fault data:', error);
+        document.getElementById('faultHistoricalBody').innerHTML = 
+          '<tr><td colspan="4" style="text-align: center;">Error loading data</td></tr>';
+      });
+    }
+
+    // Tab functionality
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active class from all tabs and contents
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab and corresponding content
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.target).classList.add('active');
+      });
+    });
+
     // Add enter key login functionality
     document.getElementById("password").addEventListener("keypress", function(event) {
       if (event.key === "Enter") {
@@ -1023,10 +1243,12 @@
 
     // Close modal if clicked outside
     window.addEventListener('click', function(event) {
-      const modal = document.getElementById('billModal');
-      if (event.target === modal) {
-        closeBillModal();
-      }
+      const modals = document.querySelectorAll('.modal');
+      modals.forEach(modal => {
+        if (event.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
     });
   </script>
 </body>
