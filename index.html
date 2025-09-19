@@ -950,99 +950,114 @@
       });
     }
 
+    // Helper function to safely get data values with fallbacks
+    function getDataValue(data, key, fallback = 'N/A') {
+      // Check if data exists and has the key
+      if (!data || data[key] === undefined || data[key] === null) {
+        return fallback;
+      }
+      return data[key];
+    }
+
     // ---------------- Update UI ----------------
     function updateTransformer(data){
+      // Debug: log the data structure to console to understand its format
+      console.log("Transformer Data:", data);
+      
       if(userType==="admin"){
         document.getElementById("transformerData").innerHTML = `
           <div class="data-item">
             <span>Voltage:</span>
-            <span class="data-value">${data.Voltage} V</span>
+            <span class="data-value">${getDataValue(data, 'Voltage')} V</span>
           </div>
           <div class="data-item">
             <span>Current:</span>
-            <span class="data-value">${data.Current} A</span>
+            <span class="data-value">${getDataValue(data, 'Current')} A</span>
           </div>
           <div class="data-item">
             <span>Power:</span>
-            <span class="data-value">${data.Power} W</span>
+            <span class="data-value">${getDataValue(data, 'Power')} W</span>
           </div>
           <div class="data-item">
             <span>Energy:</span>
-            <span class="data-value">${data.Energy} kWh</span>
+            <span class="data-value">${getDataValue(data, 'Energy')} kWh</span>
           </div>
           <div class="data-item">
             <span>Power Factor:</span>
-            <span class="data-value">${data.PF}</span>
+            <span class="data-value">${getDataValue(data, 'PF', getDataValue(data, 'Power_Factor', getDataValue(data, 'power_factor')))}</span>
           </div>
           <div class="data-item">
             <span>Frequency:</span>
-            <span class="data-value">${data.Freq} Hz</span>
+            <span class="data-value">${getDataValue(data, 'Freq', getDataValue(data, 'Frequency', getDataValue(data, 'frequency')))} Hz</span>
           </div>
         `;
-        addData(transformerChart, data.Power);
+        addData(transformerChart, getDataValue(data, 'Power', 0));
       }
       checkFault();
     }
 
     function updateConsumer(data){
+      // Debug: log the data structure to console to understand its format
+      console.log("Consumer Data:", data);
+      
       if(userType==="admin"){
         document.getElementById("consumerData").innerHTML = `
           <div class="data-item">
             <span>Voltage:</span>
-            <span class="data-value">${data.Voltage} V</span>
+            <span class="data-value">${getDataValue(data, 'Voltage')} V</span>
           </div>
           <div class="data-item">
             <span>Current:</span>
-            <span class="data-value">${data.Current} A</span>
+            <span class="data-value">${getDataValue(data, 'Current')} A</span>
           </div>
           <div class="data-item">
             <span>Power:</span>
-            <span class="data-value">${data.Power} W</span>
+            <span class="data-value">${getDataValue(data, 'Power')} W</span>
           </div>
           <div class="data-item">
             <span>Energy:</span>
-            <span class="data-value">${data.Energy} kWh</span>
+            <span class="data-value">${getDataValue(data, 'Energy')} kWh</span>
           </div>
           <div class="data-item">
             <span>Power Factor:</span>
-            <span class="data-value">${data.PF}</span>
+            <span class="data-value">${getDataValue(data, 'PF', getDataValue(data, 'Power_Factor', getDataValue(data, 'power_factor')))}</span>
           </div>
           <div class="data-item">
             <span>Frequency:</span>
-            <span class="data-value">${data.Freq} Hz</span>
+            <span class="data-value">${getDataValue(data, 'Freq', getDataValue(data, 'Frequency', getDataValue(data, 'frequency')))} Hz</span>
           </div>
         `;
-        addData(consumerChart, data.Power);
+        addData(consumerChart, getDataValue(data, 'Power', 0));
       }
       
       if(userType==="consumer"){
         document.getElementById("consumerDataOnly").innerHTML = `
           <div class="data-item">
             <span>Voltage:</span>
-            <span class="data-value">${data.Voltage} V</span>
+            <span class="data-value">${getDataValue(data, 'Voltage')} V</span>
           </div>
           <div class="data-item">
             <span>Current:</span>
-            <span class="data-value">${data.Current} A</span>
+            <span class="data-value">${getDataValue(data, 'Current')} A</span>
           </div>
           <div class="data-item">
             <span>Power:</span>
-            <span class="data-value">${data.Power} W</span>
+            <span class="data-value">${getDataValue(data, 'Power')} W</span>
           </div>
           <div class="data-item">
             <span>Energy:</span>
-            <span class="data-value">${data.Energy} kWh</span>
+            <span class="data-value">${getDataValue(data, 'Energy')} kWh</span>
           </div>
           <div class="data-item">
             <span>Power Factor:</span>
-            <span class="data-value">${data.PF}</span>
+            <span class="data-value">${getDataValue(data, 'PF', getDataValue(data, 'Power_Factor', getDataValue(data, 'power_factor')))}</span>
           </div>
           <div class="data-item">
             <span>Frequency:</span>
-            <span class="data-value">${data.Freq} Hz</span>
+            <span class="data-value">${getDataValue(data, 'Freq', getDataValue(data, 'Frequency', getDataValue(data, 'frequency')))} Hz</span>
           </div>
         `;
-        addData(consumerOnlyChart, data.Power);
+        addData(consumerOnlyChart, getDataValue(data, 'Power', 0));
       }
       checkFault();
     }
@@ -1169,12 +1184,12 @@
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${new Date(parseInt(record.timestamp)).toLocaleString()}</td>
-            <td>${record.Voltage || 'N/A'}</td>
-            <td>${record.Current || 'N/A'}</td>
-            <td>${record.Power || 'N/A'}</td>
-            <td>${record.Energy || 'N/A'}</td>
-            <td>${record.PF || 'N/A'}</td>
-            <td>${record.Freq || 'N/A'}</td>
+            <td>${getDataValue(record, 'Voltage')}</td>
+            <td>${getDataValue(record, 'Current')}</td>
+            <td>${getDataValue(record, 'Power')}</td>
+            <td>${getDataValue(record, 'Energy')}</td>
+            <td>${getDataValue(record, 'PF', getDataValue(record, 'Power_Factor', getDataValue(record, 'power_factor')))}</td>
+            <td>${getDataValue(record, 'Freq', getDataValue(record, 'Frequency', getDataValue(record, 'frequency')))}</td>
           `;
           tbody.appendChild(row);
         });
@@ -1208,9 +1223,9 @@
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${new Date(parseInt(record.timestamp)).toLocaleString()}</td>
-            <td>${record.transformerPower || 'N/A'}</td>
-            <td>${record.consumerPower || 'N/A'}</td>
-            <td>${record.difference || 'N/A'}</td>
+            <td>${getDataValue(record, 'transformerPower')}</td>
+            <td>${getDataValue(record, 'consumerPower')}</td>
+            <td>${getDataValue(record, 'difference')}</td>
           `;
           tbody.appendChild(row);
         });
