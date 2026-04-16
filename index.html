@@ -4,9 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>Power Theft Sentinel | Real-time Monitoring & Relay Control</title>
-  <!-- Firebase (Modular v9+ compat via v8 for simplicity) -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- Firebase Modular SDK v12.12.0 -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js"
+      }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -22,7 +28,6 @@
       transition: all 0.2s ease;
     }
 
-    /* Theft alert global blink (red overlay effect) */
     body.theft-alarm {
       background: #ffebee;
       animation: subtlePulse 1s infinite;
@@ -100,15 +105,6 @@
       font-size: 1.1rem;
     }
 
-    .badge-theft {
-      background: #c44536;
-      color: white;
-      padding: 5px 12px;
-      border-radius: 50px;
-      font-size: 0.8rem;
-      font-weight: bold;
-    }
-
     .btn {
       padding: 10px 20px;
       border: none;
@@ -149,14 +145,6 @@
       border-left: 5px solid #f4c542;
     }
 
-    .status-active {
-      color: #27ae60;
-      font-weight: bold;
-    }
-    .status-off {
-      color: #e67e22;
-    }
-
     .alert-container {
       position: fixed;
       top: 20px;
@@ -178,6 +166,7 @@
     }
     .alert-danger { background: #c44536; }
     .alert-success { background: #2a7f6e; }
+    .alert-warning { background: #e67e22; }
     .close-alert {
       background: none;
       border: none;
@@ -233,14 +222,16 @@
       color: #5f6c7a;
     }
     .hidden { display: none; }
-    .blink-text {
-      animation: blinkWarning 1s infinite;
-      font-weight: bold;
+    .form-control {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #ccc;
+      border-radius: 28px;
+      margin: 8px 0;
+      font-size: 1rem;
     }
-    @keyframes blinkWarning {
-      0% { opacity: 1; color: #c44536; }
-      50% { opacity: 0.6; color: #ff8c6b; }
-      100% { opacity: 1; color: #c44536; }
+    .form-group {
+      margin-bottom: 16px;
     }
   </style>
 </head>
@@ -254,28 +245,45 @@
 
 <div class="alert-container" id="alertBox"></div>
 
-<!-- Modals -->
+<!-- History Modal -->
 <div id="historyModal" class="modal">
   <div class="modal-content">
-    <div style="display: flex; justify-content: space-between;"><h2>📋 Theft Event Log</h2><button onclick="closeModal('historyModal')" style="font-size:24px; background:none; border:none;">&times;</button></div>
-    <div class="table-responsive"><table id="historyTable"><thead><tr><th>Time</th><th>Transformer(W)</th><th>Consumer(W)</th><th>Diff(W)</th><th>Relay Action</th></tr></thead><tbody></tbody></table></div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h2><i class="fas fa-history"></i> Theft Event Log</h2>
+      <button onclick="closeModal('historyModal')" style="font-size:28px; background:none; border:none; cursor:pointer;">&times;</button>
+    </div>
+    <div class="table-responsive">
+      <table id="historyTable" style="width:100%">
+        <thead><tr><th>Time</th><th>Transformer(W)</th><th>Consumer(W)</th><th>Diff(W)</th><th>Relay Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Bill Modal -->
+<div id="billModal" class="modal">
+  <div class="modal-content" style="max-width:450px;">
+    <h3>💰 Monthly Bill Estimate</h3>
+    <div id="billContent"></div>
+    <button onclick="closeModal('billModal')" class="btn" style="margin-top:15px;">Close</button>
   </div>
 </div>
 
 <div class="container">
   <!-- LOGIN PANEL -->
-  <div id="loginDiv" class="card" style="max-width: 450px; margin: 40px auto;">
+  <div id="loginDiv" class="card" style="max-width: 480px; margin: 40px auto;">
     <h2><i class="fas fa-key"></i> System Access</h2>
     <div class="form-group"><label>User ID</label><input type="text" id="userid" class="form-control" placeholder="admin123 / consumer123"></div>
     <div class="form-group"><label>Password</label><input type="password" id="password" class="form-control" placeholder="****"></div>
     <button onclick="login()" class="btn" style="width:100%"><i class="fas fa-sign-in-alt"></i> Login</button>
-    <p style="margin-top:12px; font-size:12px;">Demo: admin123/admin123 | consumer123/consumer123</p>
+    <p style="margin-top:12px; font-size:12px; text-align:center;">Demo: admin123/admin123 | consumer123/consumer123</p>
   </div>
 
   <!-- ADMIN DASHBOARD -->
   <div id="adminPage" class="hidden">
     <div class="card">
-      <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+      <div style="display: flex; justify-content: space-between; flex-wrap: wrap; align-items:center;">
         <h2><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h2>
         <div>
           <button class="btn btn-info" onclick="openHistoryModal()"><i class="fas fa-history"></i> Theft Log</button>
@@ -294,28 +302,38 @@
     </div>
     <!-- Relay Control Card -->
     <div class="card relay-panel">
-      <h3><i class="fas fa-microchip"></i> Remote Relay Control (ESP32-2 / Consumer side)</h3>
-      <p>Manual trip / restore when theft detected or for safety. Current relay status: <strong id="relayStatusLabel">--</strong></p>
+      <h3><i class="fas fa-microchip"></i> Remote Relay Control (ESP32-2 Consumer Side)</h3>
+      <p>Current relay status: <strong id="relayStatusLabel" style="font-size:1.1rem;">--</strong></p>
       <button class="btn btn-relay" id="relayToggleBtn" onclick="toggleRelayManually()"><i class="fas fa-power-off"></i> Toggle Relay (Force Trip/Restore)</button>
-      <p style="font-size:12px; margin-top:10px;">⚠️ On theft detection > 30W diff, system automatically activates relay (Consumer side cut).</p>
+      <p style="font-size:12px; margin-top:10px;"><i class="fas fa-exclamation-triangle"></i> On theft detection > 30W diff, system automatically trips consumer relay.</p>
     </div>
-    <div class="card"><h3><i class="fas fa-list"></i> Recent Theft Alerts</h3><div class="table-responsive"><table id="faultTableLog"><thead><tr><th>Timestamp</th><th>Transformer(W)</th><th>Consumer(W)</th><th>Diff(W)</th><th>Relay Status</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h3><i class="fas fa-list"></i> Recent Theft Alerts</h3><div class="table-responsive"><table id="faultTableLog" style="width:100%"><thead><tr><th>Timestamp</th><th>Transformer(W)</th><th>Consumer(W)</th><th>Diff(W)</th><th>Relay Status</th></tr></thead><tbody></tbody></table></div></div>
   </div>
 
   <!-- CONSUMER DASHBOARD -->
   <div id="consumerPage" class="hidden">
     <div class="card">
-      <div style="display:flex; justify-content: space-between;"><h2><i class="fas fa-home"></i> Consumer Portal</h2><div><button class="btn btn-info" onclick="openHistoryModal()">Theft History</button><button class="btn btn-warning" onclick="calculateMonthlyBill()">💰 Estimate Bill</button><button class="btn btn-danger" onclick="logout()">Logout</button></div></div>
+      <div style="display: flex; justify-content: space-between; flex-wrap:wrap;">
+        <h2><i class="fas fa-home"></i> Consumer Portal</h2>
+        <div>
+          <button class="btn btn-info" onclick="openHistoryModal()"><i class="fas fa-history"></i> Theft History</button>
+          <button class="btn btn-warning" onclick="calculateMonthlyBill()"><i class="fas fa-calculator"></i> Estimate Bill</button>
+          <button class="btn btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+      </div>
     </div>
     <div class="card"><h3>📊 Your Energy Readings</h3><div id="consumerDataOnly"></div></div>
     <div class="card"><div class="chart-container"><canvas id="consumerOnlyChart"></canvas></div></div>
-    <div class="card"><h3>⚠️ Theft Incidents (affecting your line)</h3><div class="table-responsive"><table id="consumerFaultTable"><thead><tr><th>Time</th><th>Diff(W)</th><th>Relay Tripped</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h3>⚠️ Theft Incidents Affecting Your Line</h3><div class="table-responsive"><table id="consumerFaultTable" style="width:100%"><thead><tr><th>Time</th><th>Diff(W)</th><th>Relay Tripped</th></tr></thead><tbody></tbody></table></div></div>
   </div>
-  <footer>⚡ Real-time power monitoring | Auto relay trip on theft >30W difference | Firebase sync</footer>
+  <footer>⚡ Real-time monitoring | Auto relay trip on theft >30W difference | Firebase Realtime DB</footer>
 </div>
 
-<script>
-  // -------------------- FIREBASE CONFIG (updated for reliability) --------------------
+<script type="module">
+  // ----- Firebase Modular SDK v12.12.0 with updated config -----
+  import { initializeApp } from "firebase/app";
+  import { getDatabase, ref, onValue, set, get, child, push, limitToLast, query } from "firebase/database";
+
   const firebaseConfig = {
     apiKey: "AIzaSyDMqGtcYv3zHHy6h14vgsU3a2ZqTT5vQ7Q",
     authDomain: "ptms-2a847.firebaseapp.com",
@@ -325,83 +343,91 @@
     messagingSenderId: "217413018435",
     appId: "1:217413018435:web:8f85bd5814ffd7a94385f6"
   };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
   // ---------- Global state ----------
-  let currentUser = "";          // "admin" or "consumer"
-  let theftLog = [];             // store theft events for export
-  let relayState = false;        // false = relay off (cut), true = relay on (normal) -> but for consumer side, active low/high? We define: relayActive = true means consumer line connected.
-  let theftActive = false;
-  let theftTimeout = null;
-  let lastTPower = 0, lastCPower = 0;
+  window.currentUser = "";          // "admin" or "consumer"
+  window.theftLog = [];             // store theft events for export
+  window.relayState = true;         // true = line connected (normal), false = cut
+  window.theftActive = false;
+  window.theftTimeout = null;
+  window.lastTPower = 0;
+  window.lastCPower = 0;
 
-  // chart instances
+  // Chart instances
   let transChart, consChart, consOnlyChart;
 
-  // Helper: show floating alerts
-  function showAlert(msg, type="danger") {
+  // Helper: show toast alert
+  function showAlert(msg, type = "danger") {
     const container = document.getElementById("alertBox");
-    const id = "alert_"+Date.now();
+    const id = "alert_" + Date.now();
     const alertDiv = document.createElement("div");
     alertDiv.className = `alert alert-${type}`;
-    alertDiv.innerHTML = `<span><i class="fas ${type==='danger'?'fa-bell':type==='success'?'fa-check-circle':'fa-info-circle'}"></i> ${msg}</span><button class="close-alert" onclick="this.parentElement.remove()">&times;</button>`;
+    alertDiv.innerHTML = `<span><i class="fas ${type === 'danger' ? 'fa-bell' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${msg}</span><button class="close-alert" onclick="this.parentElement.remove()">&times;</button>`;
     container.appendChild(alertDiv);
-    setTimeout(() => { if(alertDiv) alertDiv.remove(); }, 5000);
+    setTimeout(() => { if (alertDiv) alertDiv.remove(); }, 5500);
   }
 
   function updateClock() {
     document.getElementById("liveClock").innerText = new Date().toLocaleString();
   }
-  setInterval(updateClock,1000); updateClock();
+  setInterval(updateClock, 1000);
+  updateClock();
 
-  // ---------- Firebase Relay Control (write relay command for ESP32-2) ----------
-  function updateRelayInFirebase(state) { // state true=ON (normal), false=OFF (cut/trip)
-    const relayPath = "/ESP32_2/RelayCommand";   // ESP32-2 listens to this node
-    db.ref(relayPath).set({ state: state, timestamp: Date.now(), triggeredBy: currentUser === "admin" ? "Admin" : "Auto" })
-    .then(() => console.log(`Relay command ${state?"ON":"OFF"} sent`))
-    .catch(err => console.error(err));
-    relayState = state;
+  // ---------- Relay Control via Firebase (ESP32-2 listens to /RelayCommand) ----------
+  async function updateRelayInFirebase(state) {
+    const relayCmdRef = ref(db, "ESP32_2/RelayCommand");
+    await set(relayCmdRef, {
+      state: state,
+      timestamp: Date.now(),
+      triggeredBy: window.currentUser === "admin" ? "Admin" : "Auto"
+    });
+    window.relayState = state;
     const relayLabel = document.getElementById("relayStatusLabel");
-    if(relayLabel) relayLabel.innerText = state ? "🟢 LINE CONNECTED (Normal)" : "🔴 LINE CUT (Trip/Theft)";
-    // blink visual hint
+    if (relayLabel) relayLabel.innerText = state ? "🟢 LINE CONNECTED (Normal)" : "🔴 LINE CUT (Trip/Theft)";
+    console.log(`Relay command ${state ? "ON" : "OFF"} sent`);
   }
 
-  // Manual toggle by admin
-  window.toggleRelayManually = function() {
-    if(currentUser !== "admin") { showAlert("Only admin can toggle relay", "warning"); return; }
-    const newState = !relayState;
-    updateRelayInFirebase(newState);
-    showAlert(`Relay manually ${newState ? "Restored (Consumer ON)" : "Tripped (Consumer OFF)"}`, newState?"success":"danger");
-    // also log manual event
-    addFaultToTableUI(new Date().toLocaleString(), lastTPower, lastCPower, Math.abs(lastTPower - lastCPower), `MANUAL_${newState?"RESTORE":"TRIP"}`);
+  // Manual toggle (admin)
+  window.toggleRelayManually = async function () {
+    if (window.currentUser !== "admin") {
+      showAlert("Only admin can manually toggle relay", "warning");
+      return;
+    }
+    const newState = !window.relayState;
+    await updateRelayInFirebase(newState);
+    showAlert(`Relay manually ${newState ? "Restored (Consumer ON)" : "Tripped (Consumer OFF)"}`, newState ? "success" : "danger");
+    addFaultToTableUI(new Date().toLocaleString(), window.lastTPower, window.lastCPower, Math.abs(window.lastTPower - window.lastCPower), `MANUAL_${newState ? "RESTORE" : "TRIP"}`);
   };
 
-  // Theft detection + auto relay cut
+  // Theft detection logic + auto relay cut
   function evaluateTheft(tPower, cPower) {
-    if(!tPower || !cPower) return;
+    if (tPower === undefined || cPower === undefined) return;
     const diff = tPower - cPower;
-    lastTPower = tPower; lastCPower = cPower;
-    if(diff > 30) { // threshold 30W
-      if(!theftActive) {
-        theftTimeout = setTimeout(() => {
-          // persistent theft => trigger relay cut (if not already cut)
-          if(!theftActive) {
-            theftActive = true;
-            // Auto trip the consumer side relay (ESP32-2)
-            if(relayState !== false) {
-              updateRelayInFirebase(false);   // cut consumer line
+    window.lastTPower = tPower;
+    window.lastCPower = cPower;
+    if (diff > 30) { // threshold 30W
+      if (!window.theftActive) {
+        if (window.theftTimeout) clearTimeout(window.theftTimeout);
+        window.theftTimeout = setTimeout(async () => {
+          if (!window.theftActive) {
+            window.theftActive = true;
+            // Auto trip if relay is currently connected
+            if (window.relayState !== false) {
+              await updateRelayInFirebase(false);
               showAlert(`⚠️ POWER THEFT DETECTED! Diff: ${diff.toFixed(1)}W → Consumer relay TRIPPED`, "danger");
             } else {
-              showAlert(`⚠️ THEFT ACTIVE (${diff.toFixed(1)}W) but relay already off`, "danger");
+              showAlert(`⚠️ THEFT ACTIVE (${diff.toFixed(1)}W) but relay already OFF`, "danger");
             }
-            // log theft event
             const timestamp = new Date().toLocaleString();
-            const event = { timestamp, transformer: tPower, consumer: cPower, difference: diff, relayAction: "TRIPPED" };
-            theftLog.unshift(event);
+            const event = { timestamp, transformer: tPower, consumer: cPower, difference: diff, relayAction: "AUTO_TRIP" };
+            window.theftLog.unshift(event);
             addFaultToTableUI(timestamp, tPower, cPower, diff, "AUTO_TRIP");
-            // store in firebase theft logs
-            db.ref("theft_events/"+Date.now()).set(event);
+            // Store in Firebase theft_logs
+            const theftRef = ref(db, "theft_logs/" + Date.now());
+            set(theftRef, event);
             // visual global alarm
             document.body.classList.add("theft-alarm");
             setTimeout(() => { document.body.classList.remove("theft-alarm"); }, 8000);
@@ -409,33 +435,50 @@
         }, 4000);
       }
     } else {
-      clearTimeout(theftTimeout);
-      if(theftActive && diff < 15) {
-        theftActive = false;
-        // auto restore after 15 seconds if diff is low? But better not auto restore to avoid loop, we give admin manual restore
-        showAlert("Theft condition cleared, but relay remains in last state. Use toggle to restore manually.", "success");
+      clearTimeout(window.theftTimeout);
+      if (window.theftActive && diff < 15) {
+        window.theftActive = false;
+        showAlert("Theft condition cleared. Relay remains in last state. Use toggle to restore.", "success");
       }
     }
   }
 
   function addFaultToTableUI(ts, tp, cp, diff, action) {
-    const row = `<tr><td>${ts}</td><td>${tp.toFixed(1)}</td><td>${cp.toFixed(1)}</td><td>${diff.toFixed(1)}</td><td>${action}</td></tr>`;
-    if(currentUser === "admin") {
+    if (window.currentUser === "admin") {
       const tbody = document.querySelector("#faultTableLog tbody");
-      if(tbody) tbody.innerHTML = row + tbody.innerHTML;
-      if(tbody.children.length > 20) tbody.removeChild(tbody.lastChild);
+      if (tbody) {
+        const row = `<tr><td>${ts}</td><td>${tp?.toFixed(1) || '--'}</td><td>${cp?.toFixed(1) || '--'}</td><td>${diff?.toFixed(1)}</td><td>${action}</td></tr>`;
+        tbody.innerHTML = row + tbody.innerHTML;
+        if (tbody.children.length > 20) tbody.removeChild(tbody.lastChild);
+      }
     }
-    if(currentUser === "consumer") {
+    if (window.currentUser === "consumer") {
       const tbodyC = document.querySelector("#consumerFaultTable tbody");
-      if(tbodyC) tbodyC.innerHTML = `<tr><td>${ts}</td><td>${diff.toFixed(1)} W</td><td>${action}</td></tr>` + tbodyC.innerHTML;
-      if(tbodyC.children.length > 15) tbodyC.removeChild(tbodyC.lastChild);
+      if (tbodyC) {
+        const row = `<tr><td>${ts}</td><td>${diff?.toFixed(1)} W</td><td>${action}</td></tr>`;
+        tbodyC.innerHTML = row + tbodyC.innerHTML;
+        if (tbodyC.children.length > 15) tbodyC.removeChild(tbodyC.lastChild);
+      }
     }
   }
 
-  // update UI values, charts, theft evaluation
+  // Chart Helpers
+  function addChartData(chart, value) {
+    if (!chart) return;
+    const now = new Date().toLocaleTimeString();
+    chart.data.labels.push(now);
+    chart.data.datasets[0].data.push(value);
+    if (chart.data.labels.length > 15) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    chart.update();
+  }
+
+  // UI Update Functions
   function updateTransformerUI(data) {
-    const getVal = (key, fallback='--') => (data && data[key] !== undefined) ? data[key] : fallback;
-    if(currentUser === "admin") {
+    const getVal = (key, fallback = '--') => (data && data[key] !== undefined) ? data[key] : fallback;
+    if (window.currentUser === "admin") {
       document.getElementById("transformerData").innerHTML = `
         <div class="data-item"><span>🔌 Voltage</span><span class="data-value">${getVal('Voltage')} V</span></div>
         <div class="data-item"><span>⚡ Current</span><span class="data-value">${getVal('Current')} A</span></div>
@@ -443,15 +486,15 @@
         <div class="data-item"><span>📊 Energy</span><span class="data-value">${getVal('Energy')} kWh</span></div>
         <div class="data-item"><span>📐 PF</span><span class="data-value">${getVal('PowerFactor', getVal('PF', '0.98'))}</span></div>
       `;
-      addChartData(transChart, getVal('Power',0));
+      addChartData(transChart, parseFloat(getVal('Power', 0)));
     }
-    evaluateTheft(parseFloat(getVal('Power',0)), lastCPower);
+    evaluateTheft(parseFloat(getVal('Power', 0)), window.lastCPower);
   }
 
   function updateConsumerUI(data) {
-    const getVal = (key, fallback='--') => (data && data[key] !== undefined) ? data[key] : fallback;
-    const powerVal = parseFloat(getVal('Power',0));
-    if(currentUser === "admin") {
+    const getVal = (key, fallback = '--') => (data && data[key] !== undefined) ? data[key] : fallback;
+    const powerVal = parseFloat(getVal('Power', 0));
+    if (window.currentUser === "admin") {
       document.getElementById("consumerData").innerHTML = `
         <div class="data-item"><span>🏠 Voltage</span><span class="data-value">${getVal('Voltage')} V</span></div>
         <div class="data-item"><span>🔁 Current</span><span class="data-value">${getVal('Current')} A</span></div>
@@ -461,146 +504,148 @@
       `;
       addChartData(consChart, powerVal);
     }
-    if(currentUser === "consumer") {
+    if (window.currentUser === "consumer") {
       document.getElementById("consumerDataOnly").innerHTML = `
         <div class="data-item"><span>Voltage</span><span class="data-value">${getVal('Voltage')} V</span></div>
         <div class="data-item"><span>Current</span><span class="data-value">${getVal('Current')} A</span></div>
         <div class="data-item"><span>Power Consumption</span><span class="data-value">${powerVal} W</span></div>
         <div class="data-item"><span>Total Energy</span><span class="data-value">${getVal('Energy')} kWh</span></div>
-        <div class="data-item"><span>Power Factor</span><span class="data-value">${getVal('PowerFactor', getVal('PF','0.96'))}</span></div>
+        <div class="data-item"><span>Power Factor</span><span class="data-value">${getVal('PowerFactor', getVal('PF', '0.96'))}</span></div>
       `;
       addChartData(consOnlyChart, powerVal);
     }
-    lastCPower = powerVal;
-    if(currentUser === "admin" || currentUser === "consumer") {
-      evaluateTheft(lastTPower, powerVal);
-    }
+    window.lastCPower = powerVal;
+    evaluateTheft(window.lastTPower, powerVal);
   }
 
-  function addChartData(chart, value) {
-    if(!chart) return;
-    const now = new Date().toLocaleTimeString();
-    chart.data.labels.push(now);
-    chart.data.datasets[0].data.push(value);
-    if(chart.data.labels.length > 15) {
-      chart.data.labels.shift();
-      chart.data.datasets[0].data.shift();
-    }
-    chart.update();
-  }
-
-  // subscribe to firebase realtime
+  // Firebase Realtime Listeners
   function startRealtime() {
-    const transformerRef = db.ref("ESP32_1");
-    const consumerRef = db.ref("ESP32_2");
-    const relayStatusRef = db.ref("ESP32_2/RelayStatus");  // ESP32-2 can report back relay state (optional)
-    transformerRef.on("value", (snap) => {
-      if(snap.exists()) updateTransformerUI(snap.val());
+    const transformerRef = ref(db, "ESP32_1");
+    const consumerRef = ref(db, "ESP32_2");
+    const relayStatusRef = ref(db, "ESP32_2/RelayStatus");
+
+    onValue(transformerRef, (snap) => {
+      if (snap.exists()) updateTransformerUI(snap.val());
     });
-    consumerRef.on("value", (snap) => {
-      if(snap.exists()) updateConsumerUI(snap.val());
+    onValue(consumerRef, (snap) => {
+      if (snap.exists()) updateConsumerUI(snap.val());
     });
-    // Listen to relay status from device (if device updates this node)
-    relayStatusRef.on("value", (snap) => {
-      if(snap.exists()) {
+    onValue(relayStatusRef, (snap) => {
+      if (snap.exists()) {
         const st = snap.val().state === true || snap.val().state === "ON";
-        relayState = st;
+        window.relayState = st;
         const lbl = document.getElementById("relayStatusLabel");
-        if(lbl) lbl.innerText = st ? "🟢 LINE CONNECTED (Normal)" : "🔴 LINE CUT (Trip/Theft)";
+        if (lbl) lbl.innerText = st ? "🟢 LINE CONNECTED (Normal)" : "🔴 LINE CUT (Trip/Theft)";
       }
     });
-    // initial pull of theft logs from firebase to populate history
-    db.ref("theft_events").limitToLast(30).once("value", (snap) => {
-      if(snap.exists()) {
+    // Load previous theft logs from Firebase
+    const theftLogsRef = query(ref(db, "theft_logs"), limitToLast(30));
+    get(theftLogsRef).then((snapshot) => {
+      if (snapshot.exists()) {
         const events = [];
-        snap.forEach(child => { events.push(child.val()); });
+        snapshot.forEach((child) => { events.push(child.val()); });
         events.reverse().forEach(ev => {
-          theftLog.unshift(ev);
-          if(currentUser === "admin") addFaultToTableUI(ev.timestamp, ev.transformer, ev.consumer, ev.difference, ev.relayAction || "AUTO");
+          window.theftLog.unshift(ev);
+          if (window.currentUser === "admin") addFaultToTableUI(ev.timestamp, ev.transformer, ev.consumer, ev.difference, ev.relayAction || "AUTO");
         });
       }
     });
   }
 
-  // ---------- Bill estimate ----------
-  window.calculateMonthlyBill = function() {
-    db.ref("ESP32_2/Energy").once("value", (snap) => {
-      let energy = snap.val() || 125.4; // demo
-      const monthly = energy * 30;
-      const rate = 5.20;
-      const amount = monthly * rate;
-      alert(`💡 Estimated Monthly Bill\nEnergy (daily avg): ${energy.toFixed(2)} kWh\nProjected Month: ${monthly.toFixed(2)} kWh\nRate: ₹${rate}/kWh\nTotal: ₹${amount.toFixed(2)}`);
-    });
+  // Bill Calculation
+  window.calculateMonthlyBill = async function () {
+    const energyRef = ref(db, "ESP32_2/Energy");
+    const snapshot = await get(energyRef);
+    let energy = snapshot.val() || 142.6;
+    const monthly = energy * 30;
+    const rate = 5.20;
+    const amount = monthly * rate;
+    document.getElementById("billContent").innerHTML = `
+      <p><strong>Daily Avg Energy:</strong> ${energy.toFixed(2)} kWh</p>
+      <p><strong>Projected Monthly:</strong> ${monthly.toFixed(2)} kWh</p>
+      <p><strong>Rate:</strong> ₹${rate}/kWh</p>
+      <h3 style="margin-top:10px;">Total: ₹${amount.toFixed(2)}</h3>
+    `;
+    document.getElementById("billModal").style.display = "flex";
   };
 
-  // History modal 
-  window.openHistoryModal = function() {
+  // History Modal
+  window.openHistoryModal = function () {
     const tbody = document.querySelector("#historyTable tbody");
     tbody.innerHTML = "";
-    (theftLog.slice(0,50)).forEach(log => {
-      const row = `<tr><td>${log.timestamp}</td><td>${log.transformer?.toFixed(1) || '--'}</td><td>${log.consumer?.toFixed(1)||'--'}</td><td>${log.difference?.toFixed(1)}</td><td>${log.relayAction || 'TRIP'}</td></tr>`;
+    window.theftLog.slice(0, 50).forEach(log => {
+      const row = `<tr><td>${log.timestamp}</td><td>${log.transformer?.toFixed(1) || '--'}</td><td>${log.consumer?.toFixed(1) || '--'}</td><td>${log.difference?.toFixed(1)}</td><td>${log.relayAction || 'TRIP'}</td></tr>`;
       tbody.innerHTML += row;
     });
     document.getElementById("historyModal").style.display = "flex";
   };
   window.closeModal = (id) => document.getElementById(id).style.display = "none";
 
-  // export CSV
-  window.downloadCSV = function() {
-    if(theftLog.length === 0) { showAlert("No theft events logged", "warning"); return; }
+  // Export CSV
+  window.downloadCSV = function () {
+    if (window.theftLog.length === 0) { showAlert("No theft events to export", "warning"); return; }
     let csv = "Timestamp,Transformer(W),Consumer(W),Diff(W),RelayAction\n";
-    theftLog.forEach(ev => {
+    window.theftLog.forEach(ev => {
       csv += `"${ev.timestamp}",${ev.transformer},${ev.consumer},${ev.difference},${ev.relayAction}\n`;
     });
-    const blob = new Blob([csv], {type:"text/csv"});
+    const blob = new Blob([csv], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `theft_log_${Date.now()}.csv`;
     link.click();
-    showAlert("Log exported", "success");
+    showAlert("CSV exported successfully", "success");
   };
 
+  // Initialize Charts
+  function initCharts() {
+    const opt = { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } };
+    if (window.currentUser === "admin") {
+      const ctxT = document.getElementById("transformerPowerChart").getContext("2d");
+      const ctxC = document.getElementById("consumerPowerChart").getContext("2d");
+      transChart = new Chart(ctxT, { type: 'line', data: { labels: [], datasets: [{ label: "Transformer Power (W)", borderColor: "#3498db", backgroundColor: "#3498db20", fill: true, tension: 0.3 }] }, options: opt });
+      consChart = new Chart(ctxC, { type: 'line', data: { labels: [], datasets: [{ label: "Consumer Power (W)", borderColor: "#e67e22", backgroundColor: "#e67e2220", fill: true, tension: 0.3 }] }, options: opt });
+    } else if (window.currentUser === "consumer") {
+      const ctxCO = document.getElementById("consumerOnlyChart").getContext("2d");
+      consOnlyChart = new Chart(ctxCO, { type: 'line', data: { labels: [], datasets: [{ label: "Your Power (W)", borderColor: "#2a7f6e", backgroundColor: "#2a7f6e20", fill: true }] }, options: opt });
+    }
+  }
+
   // Login logic
-  window.login = function() {
+  window.login = function () {
     const uid = document.getElementById("userid").value.trim();
     const pwd = document.getElementById("password").value.trim();
-    if(uid === "admin123" && pwd === "admin123") {
-      currentUser = "admin";
+    if (uid === "admin123" && pwd === "admin123") {
+      window.currentUser = "admin";
       document.getElementById("loginDiv").classList.add("hidden");
       document.getElementById("adminPage").classList.remove("hidden");
       document.getElementById("consumerPage").classList.add("hidden");
       initCharts();
       startRealtime();
-      showAlert("Admin logged in | Real-time theft protection active", "success");
-      // set default relay status read
-      db.ref("ESP32_2/RelayStatus/state").once("value", snap => { if(snap.exists()) relayState = snap.val(); else relayState = true; updateRelayInFirebase(relayState); });
-    } else if(uid === "consumer123" && pwd === "consumer123") {
-      currentUser = "consumer";
+      showAlert("Admin logged in | Theft protection active", "success");
+      // fetch initial relay status
+      get(ref(db, "ESP32_2/RelayStatus/state")).then(snap => {
+        if (snap.exists()) window.relayState = snap.val();
+        else window.relayState = true;
+        updateRelayInFirebase(window.relayState);
+      });
+    } else if (uid === "consumer123" && pwd === "consumer123") {
+      window.currentUser = "consumer";
       document.getElementById("loginDiv").classList.add("hidden");
       document.getElementById("consumerPage").classList.remove("hidden");
       document.getElementById("adminPage").classList.add("hidden");
       initCharts();
       startRealtime();
       showAlert("Consumer access | Monitoring your consumption", "success");
-    } else { showAlert("Invalid credentials", "danger"); }
-  };
-  window.logout = function() { location.reload(); };
-
-  function initCharts() {
-    const opt = { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true } } };
-    if(currentUser === "admin") {
-      const ctxT = document.getElementById("transformerPowerChart").getContext("2d");
-      const ctxC = document.getElementById("consumerPowerChart").getContext("2d");
-      transChart = new Chart(ctxT, { type: 'line', data: { labels: [], datasets: [{ label: "Transformer Power (W)", borderColor: "#3498db", backgroundColor: "#3498db20", fill: true, tension: 0.3 }] }, options: opt });
-      consChart = new Chart(ctxC, { type: 'line', data: { labels: [], datasets: [{ label: "Consumer Power (W)", borderColor: "#e67e22", backgroundColor: "#e67e2220", fill: true, tension: 0.3 }] }, options: opt });
-    } else if(currentUser === "consumer") {
-      const ctxCO = document.getElementById("consumerOnlyChart").getContext("2d");
-      consOnlyChart = new Chart(ctxCO, { type: 'line', data: { labels: [], datasets: [{ label: "Your Power (W)", borderColor: "#2a7f6e", backgroundColor: "#2a7f6e20", fill: true }] }, options: opt });
+    } else {
+      showAlert("Invalid credentials. Use admin123/admin123 or consumer123/consumer123", "danger");
     }
-  }
+  };
+  window.logout = function () { location.reload(); };
 
-  // close modal on outside click
-  window.onclick = function(e) { if(e.target.classList && e.target.classList.contains('modal')) e.target.style.display = "none"; };
+  // Modal background close
+  window.onclick = function (e) {
+    if (e.target.classList && e.target.classList.contains('modal')) e.target.style.display = "none";
+  };
 </script>
 </body>
 </html>
