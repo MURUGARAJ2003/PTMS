@@ -245,6 +245,15 @@
 
 <div class="alert-container" id="alertBox"></div>
 
+<!-- Audio Alert (hidden) -->
+<audio id="theftAlertSound" preload="auto">
+  <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+<audio id="relayTripSound" preload="auto">
+  <source src="https://www.soundjay.com/misc/sounds/electric-circuit-breaker-02.mp3" type="audio/mpeg">
+</audio>
+
 <!-- History Modal -->
 <div id="historyModal" class="modal">
   <div class="modal-content">
@@ -326,7 +335,7 @@
     <div class="card"><div class="chart-container"><canvas id="consumerOnlyChart"></canvas></div></div>
     <div class="card"><h3>⚠️ Theft Incidents Affecting Your Line</h3><div class="table-responsive"><table id="consumerFaultTable" style="width:100%"><thead><tr><th>Time</th><th>Diff(W)</th><th>Relay Tripped</th></tr></thead><tbody></tbody></table></div></div>
   </div>
-  <footer>⚡ Real-time monitoring | Auto relay trip on theft >30W difference | Firebase Realtime DB</footer>
+  <footer>⚡ Real-time monitoring | Auto relay trip on theft >30W difference | Firebase Realtime DB | Audio alerts enabled</footer>
 </div>
 
 <script type="module">
@@ -355,12 +364,33 @@
   window.theftTimeout = null;
   window.lastTPower = 0;
   window.lastCPower = 0;
+  window.audioEnabled = true;       // audio alerts enabled by default
+  window.lastAlertTime = 0;         // throttle alerts to avoid spam
 
   // Chart instances
   let transChart, consChart, consOnlyChart;
 
-  // Helper: show toast alert
-  function showAlert(msg, type = "danger") {
+  // ----- Audio Helper Functions -----
+  function playAlertSound(soundType) {
+    if (!window.audioEnabled) return;
+    try {
+      let audio;
+      if (soundType === 'theft') {
+        audio = document.getElementById('theftAlertSound');
+      } else if (soundType === 'relay') {
+        audio = document.getElementById('relayTripSound');
+      } else {
+        audio = document.getElementById('theftAlertSound');
+      }
+      if (audio) {
+        audio.currentTime = 0; // rewind to start
+        audio.play().catch(e => console.log("Audio play error (user interaction needed first):", e));
+      }
+    } catch(e) { console.log("Audio error", e); }
+  }
+
+  // Helper: show toast alert with optional sound
+  function showAlert(msg, type = "danger", playSound = false, soundType = 'theft') {
     const container = document.getElementById("alertBox");
     const id = "alert_" + Date.now();
     const alertDiv = document.createElement("div");
@@ -368,6 +398,11 @@
     alertDiv.innerHTML = `<span><i class="fas ${type === 'danger' ? 'fa-bell' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${msg}</span><button class="close-alert" onclick="this.parentElement.remove()">&times;</button>`;
     container.appendChild(alertDiv);
     setTimeout(() => { if (alertDiv) alertDiv.remove(); }, 5500);
+    
+    if (playSound && (Date.now() - window.lastAlertTime > 2000)) { // throttle sounds every 2 sec
+      window.lastAlertTime = Date.now();
+      playAlertSound(soundType);
+    }
   }
 
   function updateClock() {
@@ -388,6 +423,12 @@
     const relayLabel = document.getElementById("relayStatusLabel");
     if (relayLabel) relayLabel.innerText = state ? "🟢 LINE CONNECTED (Normal)" : "🔴 LINE CUT (Trip/Theft)";
     console.log(`Relay command ${state ? "ON" : "OFF"} sent`);
+    // play relay sound on state change if it's a theft-triggered or manual trip
+    if (!state) {
+      showAlert(`Relay TRIPPED: Consumer line disconnected`, "danger", true, 'relay');
+    } else {
+      showAlert(`Relay RESTORED: Consumer line reconnected`, "success", false);
+    }
   }
 
   // Manual toggle (admin)
@@ -398,11 +439,10 @@
     }
     const newState = !window.relayState;
     await updateRelayInFirebase(newState);
-    showAlert(`Relay manually ${newState ? "Restored (Consumer ON)" : "Tripped (Consumer OFF)"}`, newState ? "success" : "danger");
     addFaultToTableUI(new Date().toLocaleString(), window.lastTPower, window.lastCPower, Math.abs(window.lastTPower - window.lastCPower), `MANUAL_${newState ? "RESTORE" : "TRIP"}`);
   };
 
-  // Theft detection logic + auto relay cut
+  // Theft detection logic + auto relay cut with audio alert
   function evaluateTheft(tPower, cPower) {
     if (tPower === undefined || cPower === undefined) return;
     const diff = tPower - cPower;
@@ -414,12 +454,15 @@
         window.theftTimeout = setTimeout(async () => {
           if (!window.theftActive) {
             window.theftActive = true;
+            // Play loud theft alert sound immediately
+            showAlert(`⚠️ POWER THEFT DETECTED! Diff: ${diff.toFixed(1)}W → Initiating relay trip`, "danger", true, 'theft');
+            
             // Auto trip if relay is currently connected
             if (window.relayState !== false) {
               await updateRelayInFirebase(false);
-              showAlert(`⚠️ POWER THEFT DETECTED! Diff: ${diff.toFixed(1)}W → Consumer relay TRIPPED`, "danger");
+              showAlert(`⚡ THEFT CONFIRMED! Consumer relay TRIPPED. Diff: ${diff.toFixed(1)}W`, "danger", true, 'relay');
             } else {
-              showAlert(`⚠️ THEFT ACTIVE (${diff.toFixed(1)}W) but relay already OFF`, "danger");
+              showAlert(`⚠️ THEFT ACTIVE (${diff.toFixed(1)}W) but relay already OFF`, "danger", true, 'theft');
             }
             const timestamp = new Date().toLocaleString();
             const event = { timestamp, transformer: tPower, consumer: cPower, difference: diff, relayAction: "AUTO_TRIP" };
@@ -438,7 +481,7 @@
       clearTimeout(window.theftTimeout);
       if (window.theftActive && diff < 15) {
         window.theftActive = false;
-        showAlert("Theft condition cleared. Relay remains in last state. Use toggle to restore.", "success");
+        showAlert("Theft condition cleared. Relay remains in last state. Use toggle to restore.", "success", false);
       }
     }
   }
@@ -547,6 +590,13 @@
         events.reverse().forEach(ev => {
           window.theftLog.unshift(ev);
           if (window.currentUser === "admin") addFaultToTableUI(ev.timestamp, ev.transformer, ev.consumer, ev.difference, ev.relayAction || "AUTO");
+          if (window.currentUser === "consumer" && ev.consumer !== undefined) {
+            const tbodyC = document.querySelector("#consumerFaultTable tbody");
+            if (tbodyC && !Array.from(tbodyC.children).some(row => row.innerText.includes(ev.timestamp))) {
+              const row = `<tr><td>${ev.timestamp}</td><td>${ev.difference?.toFixed(1)} W</td><td>${ev.relayAction || 'TRIP'}</td></tr>`;
+              tbodyC.innerHTML = row + tbodyC.innerHTML;
+            }
+          }
         });
       }
     });
@@ -621,8 +671,7 @@
       document.getElementById("consumerPage").classList.add("hidden");
       initCharts();
       startRealtime();
-      showAlert("Admin logged in | Theft protection active", "success");
-      // fetch initial relay status
+      showAlert("Admin logged in | Theft protection active with AUDIO ALERTS", "success", false);
       get(ref(db, "ESP32_2/RelayStatus/state")).then(snap => {
         if (snap.exists()) window.relayState = snap.val();
         else window.relayState = true;
@@ -635,7 +684,7 @@
       document.getElementById("adminPage").classList.add("hidden");
       initCharts();
       startRealtime();
-      showAlert("Consumer access | Monitoring your consumption", "success");
+      showAlert("Consumer access | Monitoring with audible alerts for theft", "success", false);
     } else {
       showAlert("Invalid credentials. Use admin123/admin123 or consumer123/consumer123", "danger");
     }
@@ -646,6 +695,17 @@
   window.onclick = function (e) {
     if (e.target.classList && e.target.classList.contains('modal')) e.target.style.display = "none";
   };
+  
+  // Enable audio after first user interaction (browser policy)
+  document.body.addEventListener('click', function enableAudioOnce() {
+    window.audioEnabled = true;
+    // test silent play to unlock audio
+    const silentTest = new Audio();
+    silentTest.volume = 0;
+    silentTest.play().then(() => {}).catch(() => {});
+    document.body.removeEventListener('click', enableAudioOnce);
+    showAlert("🔊 Audio alerts enabled. Theft detection will trigger siren sound.", "success", false);
+  }, { once: true });
 </script>
 </body>
 </html>
